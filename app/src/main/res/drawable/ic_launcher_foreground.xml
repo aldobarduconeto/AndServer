@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Ondas de Conexão Wi-Fi / Internet (Topo) -->
+    <!-- Onda Externa (Sky Blue) -->
+    <path
+        android:strokeColor="#38BDF8"
+        android:strokeWidth="3"
+        android:strokeLineCap="round"
+        android:pathData="M34,34 A28,28 0 0,1 74,34"/>
+
+    <!-- Onda Média (Emerald Green) -->
+    <path
+        android:strokeColor="#10B981"
+        android:strokeWidth="3"
+        android:strokeLineCap="round"
+        android:pathData="M41,40 A18,18 0 0,1 67,40"/>
+
+    <!-- Ponto Emissor / Beacon Central -->
+    <path
+        android:fillColor="#38BDF8"
+        android:pathData="M54,44a3,3 0 1,0 0.1,0z"/>
+
+    <!-- SERVIDOR: Unidade Superior (Rack 1) -->
+    <path
+        android:fillColor="#1A253C"
+        android:strokeColor="#263450"
+        android:strokeWidth="1.5"
+        android:pathData="M32,50 h44 a3,3 0 0,1 3,3 v8 a3,3 0 0,1 -3,3 h-44 a3,3 0 0,1 -3,-3 v-8 a3,3 0 0,1 3,-3 z"/>
+
+    <!-- Slots de Ventilação / Baias de Disco (Rack 1) -->
+    <path
+        android:fillColor="#334155"
+        android:pathData="M37,55 h18 v4 h-18 z"/>
+
+    <!-- LED Status 1 (Emerald Online) -->
+    <path
+        android:fillColor="#10B981"
+        android:pathData="M68,57a2.5,2.5 0 1,0 0.1,0z"/>
+
+    <!-- SERVIDOR: Unidade Inferior (Rack 2) -->
+    <path
+        android:fillColor="#1A253C"
+        android:strokeColor="#263450"
+        android:strokeWidth="1.5"
+        android:pathData="M32,67 h44 a3,3 0 0,1 3,3 v8 a3,3 0 0,1 -3,3 h-44 a3,3 0 0,1 -3,-3 v-8 a3,3 0 0,1 3,-3 z"/>
+
+    <!-- Slots de Ventilação / Baias de Disco (Rack 2) -->
+    <path
+        android:fillColor="#334155"
+        android:pathData="M37,72 h18 v4 h-18 z"/>
+
+    <!-- LED Status 2 (Cyan Online) -->
+    <path
+        android:fillColor="#38BDF8"
+        android:pathData="M68,74a2.5,2.5 0 1,0 0.1,0z"/>
+
+    <!-- Escudo / Cadeado de Segurança HTTPS TLS (Inferior Central) -->
+    <path
+        android:fillColor="#10B981"
+        android:strokeColor="#0B0F17"
+        android:strokeWidth="1.5"
+        android:pathData="M54,76 L61,79 V83 C61,87.5 58,90.5 54,92 C50,90.5 47,87.5 47,83 V79 Z"/>
+
+    <!-- Ponto Interno do Escudo -->
+    <path
+        android:fillColor="#0B0F17"
+        android:pathData="M54,82 v4"/>
+</vector>

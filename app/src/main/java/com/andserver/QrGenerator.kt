@@ -4,6 +4,15 @@ import android.graphics.Bitmap
 import android.graphics.Color
 
 object QrGenerator {
+    private data class VersionConfig(
+        val version: Int,
+        val size: Int,
+        val totalCodewords: Int,
+        val dataCodewords: Int,
+        val ecCodewords: Int,
+        val alignPos: Int
+    )
+
     private val expTable = IntArray(512)
     private val logTable = IntArray(256)
 
@@ -42,11 +51,17 @@ object QrGenerator {
     fun encode(text: String): Array<BooleanArray> {
         val bytes = text.toByteArray(Charsets.UTF_8)
         // Versão 3 (29x29, até 53 bytes) ou Versão 4 (33x33, até 78 bytes) ou Versão 5 (37x37, até 106 bytes)
-        val (version, size, totalCodewords, dataCodewords, ecCodewords, alignPos) = when {
-            bytes.size <= 53 -> arrayOf(3, 29, 70, 55, 15, 22)
-            bytes.size <= 78 -> arrayOf(4, 33, 100, 80, 20, 26)
-            else -> arrayOf(5, 37, 134, 108, 26, 30)
+        val config = when {
+            bytes.size <= 53 -> VersionConfig(3, 29, 70, 55, 15, 22)
+            bytes.size <= 78 -> VersionConfig(4, 33, 100, 80, 20, 26)
+            else -> VersionConfig(5, 37, 134, 108, 26, 30)
         }
+        val version = config.version
+        val size = config.size
+        val totalCodewords = config.totalCodewords
+        val dataCodewords = config.dataCodewords
+        val ecCodewords = config.ecCodewords
+        val alignPos = config.alignPos
 
         // Codificação em Modo Byte (0100)
         val bitBuffer = mutableListOf<Boolean>()

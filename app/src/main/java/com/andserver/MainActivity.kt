@@ -146,12 +146,12 @@ class MainActivity : Activity() {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
             background = roundedDrawable(panelAlt, panelBorder, dp(1), dp(16).toFloat())
-            setPadding(dp(10), dp(4), dp(12), dp(4))
+            setPadding(dp(8), dp(4), dp(12), dp(4))
         }
-        val tagDot = View(this).apply {
-            background = roundedDrawable(mint, 0, 0, dp(4).toFloat())
+        val appIcon = ImageView(this).apply {
+            setImageResource(R.mipmap.ic_launcher)
         }
-        tagLayout.addView(tagDot, LinearLayout.LayoutParams(dp(7), dp(7)).apply { rightMargin = dp(6) })
+        tagLayout.addView(appIcon, LinearLayout.LayoutParams(dp(18), dp(18)).apply { rightMargin = dp(6) })
         tagLayout.addView(label("AND SERVER", 11, mint, bold = true))
         titleContainer.addView(tagLayout, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT))
 
@@ -209,7 +209,7 @@ class MainActivity : Activity() {
         root.addView(divider, LinearLayout.LayoutParams(-1, dp(1)))
 
         val scroll = ScrollView(this).apply {
-            fillViewport = true
+            setFillViewport(true)
             isVerticalScrollBarEnabled = false
         }
 
@@ -720,7 +720,7 @@ class MainActivity : Activity() {
                     prefs.edit()
                         .putString("type", selectedType)
                         .putString("network_scope", selectedScope)
-                        .putStringSet("filters", filters.toSet())
+                        .putStringSet("filters", this@MainActivity.filters.toSet())
                         .putInt("port", value)
                         .putString("password", passwordInput.text.toString())
                         .apply()
@@ -790,6 +790,7 @@ class MainActivity : Activity() {
         )
         fileChecks.clear()
         choices.forEach { (id, title) ->
+            val filterId = id
             val filterCard = LinearLayout(this).apply {
                 orientation = LinearLayout.HORIZONTAL
                 gravity = Gravity.CENTER_VERTICAL
@@ -801,10 +802,10 @@ class MainActivity : Activity() {
                     textSize = 13f
                     setTextColor(textPrimary)
                     buttonTintList = ColorStateList.valueOf(mint)
-                    isChecked = id in filters
-                    setOnCheckedChangeListener { _, checked -> onFilterChanged(id, checked) }
+                    isChecked = filterId in this@MainActivity.filters
+                    setOnCheckedChangeListener { _, checked -> onFilterChanged(filterId, checked) }
                 }
-                fileChecks[id] = check
+                fileChecks[filterId] = check
                 addView(check)
             }
             container.addView(filterCard, marginTop(6))

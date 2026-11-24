@@ -1,6 +1,10 @@
 # AndServer 🚀
 
 <p align="center">
+  <img src="docs/screenshots/app_icon.svg" width="130" height="130" alt="AndServer App Icon" style="border-radius: 28px;" />
+</p>
+
+<p align="center">
   <img src="https://img.shields.io/badge/Android-SDK%2035-3DDC84?style=for-the-badge&logo=android&logoColor=white" alt="Android SDK 35" />
   <img src="https://img.shields.io/badge/Kotlin-2.0.21-7F52FF?style=for-the-badge&logo=kotlin&logoColor=white" alt="Kotlin 2.0.21" />
   <img src="https://img.shields.io/badge/Security-TLS%201.3-10B981?style=for-the-badge&logo=shield&logoColor=white" alt="TLS 1.3" />

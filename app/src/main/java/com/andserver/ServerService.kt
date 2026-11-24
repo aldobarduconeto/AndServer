@@ -143,7 +143,7 @@ class ServerService : Service() {
         val scopeLabel = if (scope == "internet") "Internet (Público)" else "Rede Local (LAN)"
         return builder.setContentTitle("AndServer Ativo · $scopeLabel")
             .setContentText("HTTPS na porta $port")
-            .setSmallIcon(android.R.drawable.stat_sys_upload_done).setOngoing(true).setContentIntent(open)
+            .setSmallIcon(R.mipmap.ic_launcher).setOngoing(true).setContentIntent(open)
             .addAction(android.R.drawable.ic_media_pause, "Parar", stop).build()
     }
 
@@ -785,7 +785,7 @@ private class LanHttpServer(
             }
         val parent = if (rel.contains('/')) rel.substringBeforeLast('/') else ""
         val up = if (rel.isNotEmpty()) """<a class="btn-back" href="/public/${urlPath(parent)}">← Pasta anterior</a>""" else ""
-        return """<!doctype html><html lang="pt-br"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#0b0f17"><title>Arquivos · AndServer</title><style>
+        return """<!doctype html><html lang="pt-br"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#0b0f17"><title>Arquivos · AndServer</title><link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%230b0f17'/%3E%3Cpath d='M8 10h16v4H8zm0 8h16v4H8z' fill='%231a253c' stroke='%23263450' stroke-width='.5'/%3E%3Ccircle cx='21' cy='12' r='1' fill='%2310b981'/%3E%3Ccircle cx='21' cy='20' r='1' fill='%2338bdf8'/%3E%3Cpath d='M11 6a8 8 0 0 1 10 0' stroke='%2338bdf8' stroke-width='1.5' stroke-linecap='round' fill='none'/%3E%3C/svg%3E"><style>
             :root{--bg:#0b0f17;--card:#131b2c;--border:#263450;--primary:#10b981;--text:#f8fafc;--text-muted:#94a3b8}
             *{box-sizing:border-box;margin:0;padding:0}body{font:15px -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--text);padding:32px 18px 60px;max-width:840px;margin:0 auto}
             header{margin-bottom:24px}h1{font-size:24px;font-weight:700;margin-bottom:8px}.path-sub{color:var(--text-muted);font-size:13px;word-break:break-all}
@@ -815,7 +815,7 @@ private class LanHttpServer(
         val protection = if (password.isEmpty()) "Desativada (Acesso livre)" else "Ativa · HTTP Basic (Com Escudo Anti-Força Bruta)"
         val scopeLabel = if (networkScope == "internet") "Toda a Internet (Público)" else "Rede Local (LAN)"
 
-        return """<!doctype html><html lang="pt-br"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#0b0f17"><title>AndServer · Painel do Servidor</title><style>
+        return """<!doctype html><html lang="pt-br"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#0b0f17"><title>AndServer · Painel do Servidor</title><link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%230b0f17'/%3E%3Cpath d='M8 10h16v4H8zm0 8h16v4H8z' fill='%231a253c' stroke='%23263450' stroke-width='.5'/%3E%3Ccircle cx='21' cy='12' r='1' fill='%2310b981'/%3E%3Ccircle cx='21' cy='20' r='1' fill='%2338bdf8'/%3E%3Cpath d='M11 6a8 8 0 0 1 10 0' stroke='%2338bdf8' stroke-width='1.5' stroke-linecap='round' fill='none'/%3E%3C/svg%3E"><style>
             :root{
                 --bg:#0b0f17;--card:#131b2c;--card-alt:#1a253c;--border:#263450;--border-subtle:rgba(255,255,255,0.07);
                 --primary:#10b981;--primary-glow:rgba(16,185,129,0.25);--text:#f8fafc;--text-muted:#94a3b8;--text-subtle:#64748b;
