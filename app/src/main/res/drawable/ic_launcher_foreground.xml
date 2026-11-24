@@ -5,69 +5,62 @@
     android:viewportWidth="108"
     android:viewportHeight="108">
 
-    <!-- Ondas de Conexão Wi-Fi / Internet (Topo) -->
-    <!-- Onda Externa (Sky Blue) -->
+    <!-- Arco Superior de Transmissão (Sky Blue para Esmeralda) -->
     <path
         android:strokeColor="#38BDF8"
-        android:strokeWidth="3"
+        android:strokeWidth="3.5"
         android:strokeLineCap="round"
-        android:pathData="M34,34 A28,28 0 0,1 74,34"/>
+        android:pathData="M38,36 C44,30 64,30 70,36"/>
 
-    <!-- Onda Média (Emerald Green) -->
+    <!-- Servidor Bloco Superior (Rack 1) -->
+    <path
+        android:fillColor="#182338"
+        android:strokeColor="#2B3B59"
+        android:strokeWidth="1.2"
+        android:pathData="M34,43 h40 a4,4 0 0,1 4,4 v4 a4,4 0 0,1 -4,4 h-40 a4,4 0 0,1 -4,-4 v-4 a4,4 0 0,1 4,-4 z"/>
+
+    <!-- Indicador LED Sky Blue -->
+    <path
+        android:fillColor="#38BDF8"
+        android:pathData="M40,49 a2,2 0 1,0 0.1,0 z"/>
+
+    <!-- Barra de atividade 1 -->
+    <path
+        android:fillColor="#24324B"
+        android:pathData="M52,48 h18 v2 h-18 z"/>
+    <path
+        android:fillColor="#38BDF8"
+        android:pathData="M52,48 h10 v2 h-10 z"/>
+
+    <!-- Servidor Bloco Inferior (Rack 2) -->
+    <path
+        android:fillColor="#182338"
+        android:strokeColor="#2B3B59"
+        android:strokeWidth="1.2"
+        android:pathData="M34,58 h40 a4,4 0 0,1 4,4 v4 a4,4 0 0,1 -4,4 h-40 a4,4 0 0,1 -4,-4 v-4 a4,4 0 0,1 4,-4 z"/>
+
+    <!-- Indicador LED Emerald Green -->
+    <path
+        android:fillColor="#10B981"
+        android:pathData="M40,64 a2,2 0 1,0 0.1,0 z"/>
+
+    <!-- Barra de atividade 2 -->
+    <path
+        android:fillColor="#24324B"
+        android:pathData="M52,63 h18 v2 h-18 z"/>
+    <path
+        android:fillColor="#10B981"
+        android:pathData="M52,63 h13 v2 h-13 z"/>
+
+    <!-- Link / Feixe de Conexão Vertical -->
     <path
         android:strokeColor="#10B981"
-        android:strokeWidth="3"
+        android:strokeWidth="2.5"
         android:strokeLineCap="round"
-        android:pathData="M41,40 A18,18 0 0,1 67,40"/>
+        android:pathData="M54,72 L54,78"/>
 
-    <!-- Ponto Emissor / Beacon Central -->
-    <path
-        android:fillColor="#38BDF8"
-        android:pathData="M54,44a3,3 0 1,0 0.1,0z"/>
-
-    <!-- SERVIDOR: Unidade Superior (Rack 1) -->
-    <path
-        android:fillColor="#1A253C"
-        android:strokeColor="#263450"
-        android:strokeWidth="1.5"
-        android:pathData="M32,50 h44 a3,3 0 0,1 3,3 v8 a3,3 0 0,1 -3,3 h-44 a3,3 0 0,1 -3,-3 v-8 a3,3 0 0,1 3,-3 z"/>
-
-    <!-- Slots de Ventilação / Baias de Disco (Rack 1) -->
-    <path
-        android:fillColor="#334155"
-        android:pathData="M37,55 h18 v4 h-18 z"/>
-
-    <!-- LED Status 1 (Emerald Online) -->
+    <!-- Ponto de ancoragem de rede -->
     <path
         android:fillColor="#10B981"
-        android:pathData="M68,57a2.5,2.5 0 1,0 0.1,0z"/>
-
-    <!-- SERVIDOR: Unidade Inferior (Rack 2) -->
-    <path
-        android:fillColor="#1A253C"
-        android:strokeColor="#263450"
-        android:strokeWidth="1.5"
-        android:pathData="M32,67 h44 a3,3 0 0,1 3,3 v8 a3,3 0 0,1 -3,3 h-44 a3,3 0 0,1 -3,-3 v-8 a3,3 0 0,1 3,-3 z"/>
-
-    <!-- Slots de Ventilação / Baias de Disco (Rack 2) -->
-    <path
-        android:fillColor="#334155"
-        android:pathData="M37,72 h18 v4 h-18 z"/>
-
-    <!-- LED Status 2 (Cyan Online) -->
-    <path
-        android:fillColor="#38BDF8"
-        android:pathData="M68,74a2.5,2.5 0 1,0 0.1,0z"/>
-
-    <!-- Escudo / Cadeado de Segurança HTTPS TLS (Inferior Central) -->
-    <path
-        android:fillColor="#10B981"
-        android:strokeColor="#0B0F17"
-        android:strokeWidth="1.5"
-        android:pathData="M54,76 L61,79 V83 C61,87.5 58,90.5 54,92 C50,90.5 47,87.5 47,83 V79 Z"/>
-
-    <!-- Ponto Interno do Escudo -->
-    <path
-        android:fillColor="#0B0F17"
-        android:pathData="M54,82 v4"/>
+        android:pathData="M54,82 a3,3 0 1,0 0.1,0 z"/>
 </vector>

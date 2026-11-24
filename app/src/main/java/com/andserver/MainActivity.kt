@@ -24,7 +24,9 @@ import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
 import android.view.Window
+import android.view.WindowInsets
 import android.widget.*
+import java.io.File
 import java.net.NetworkInterface
 
 class MainActivity : Activity() {
@@ -99,6 +101,7 @@ class MainActivity : Activity() {
         filters.addAll(prefs.getStringSet("filters", setOf("all")) ?: setOf("all"))
         buildShell()
         applyKeepScreenOn()
+        ensureSiteTemplate()
         renderScreen()
         handler.post(refreshTask)
 
@@ -127,14 +130,80 @@ class MainActivity : Activity() {
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setBackgroundColor(bg)
+            fitsSystemWindows = false
         }
+
+        // Suporte total a SafeArea (WindowInsets) para entalhes/câmeras de tela e barras do sistema
+        val baseHeaderPadH = if (isTablet) dp(32) else dp(20)
+        val baseHeaderPadTop = if (isTablet) dp(24) else dp(18)
+        val baseBodyPadH = if (isTablet) dp(32) else dp(18)
+        val baseBodyPadV = if (isTablet) dp(20) else dp(14)
 
         val header = LinearLayout(this).apply {
             orientation = if (isTablet) LinearLayout.HORIZONTAL else LinearLayout.VERTICAL
             gravity = if (isTablet) Gravity.CENTER_VERTICAL else Gravity.START
-            val hPad = if (isTablet) dp(32) else dp(20)
-            val vPadTop = if (isTablet) dp(24) else dp(18)
-            setPadding(hPad, vPadTop, hPad, dp(14))
+            setPadding(baseHeaderPadH, baseHeaderPadTop, baseHeaderPadH, dp(14))
+        }
+
+        val scroll = ScrollView(this).apply {
+            setFillViewport(true)
+            isVerticalScrollBarEnabled = false
+            clipToPadding = false
+        }
+
+        val scrollInner = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER_HORIZONTAL
+        }
+
+        val contentMaxWidth = if (isTablet) dp(980) else ViewGroup.LayoutParams.MATCH_PARENT
+        body = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(baseBodyPadH, baseBodyPadV, baseBodyPadH, dp(36))
+            clipToPadding = false
+        }
+
+        if (Build.VERSION.SDK_INT >= 30) {
+            window.setDecorFitsSystemWindows(false)
+            root.setOnApplyWindowInsetsListener { _, insets ->
+                val safeInsets = insets.getInsets(
+                    WindowInsets.Type.systemBars() or WindowInsets.Type.displayCutout()
+                )
+                header.setPadding(
+                    baseHeaderPadH + safeInsets.left,
+                    baseHeaderPadTop + safeInsets.top,
+                    baseHeaderPadH + safeInsets.right,
+                    dp(14)
+                )
+                body.setPadding(
+                    baseBodyPadH + safeInsets.left,
+                    baseBodyPadV,
+                    baseBodyPadH + safeInsets.right,
+                    dp(36) + safeInsets.bottom
+                )
+                insets
+            }
+        } else if (Build.VERSION.SDK_INT >= 28) {
+            root.setOnApplyWindowInsetsListener { _, insets ->
+                val cutout = insets.displayCutout
+                val topSafe = maxOf(insets.systemWindowInsetTop, cutout?.safeInsetTop ?: 0)
+                val bottomSafe = maxOf(insets.systemWindowInsetBottom, cutout?.safeInsetBottom ?: 0)
+                val leftSafe = maxOf(insets.systemWindowInsetLeft, cutout?.safeInsetLeft ?: 0)
+                val rightSafe = maxOf(insets.systemWindowInsetRight, cutout?.safeInsetRight ?: 0)
+                header.setPadding(
+                    baseHeaderPadH + leftSafe,
+                    baseHeaderPadTop + topSafe,
+                    baseHeaderPadH + rightSafe,
+                    dp(14)
+                )
+                body.setPadding(
+                    baseBodyPadH + leftSafe,
+                    baseBodyPadV,
+                    baseBodyPadH + rightSafe,
+                    dp(36) + bottomSafe
+                )
+                insets
+            }
         }
 
         val titleContainer = LinearLayout(this).apply {
@@ -207,24 +276,6 @@ class MainActivity : Activity() {
 
         val divider = View(this).apply { setBackgroundColor(panelBorder) }
         root.addView(divider, LinearLayout.LayoutParams(-1, dp(1)))
-
-        val scroll = ScrollView(this).apply {
-            setFillViewport(true)
-            isVerticalScrollBarEnabled = false
-        }
-
-        val scrollInner = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            gravity = Gravity.CENTER_HORIZONTAL
-        }
-
-        val contentMaxWidth = if (isTablet) dp(980) else ViewGroup.LayoutParams.MATCH_PARENT
-        body = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            val padH = if (isTablet) dp(32) else dp(18)
-            val padV = if (isTablet) dp(20) else dp(14)
-            setPadding(padH, padV, padH, dp(36))
-        }
 
         scrollInner.addView(body, LinearLayout.LayoutParams(contentMaxWidth, ViewGroup.LayoutParams.WRAP_CONTENT))
         scroll.addView(scrollInner, LinearLayout.LayoutParams(-1, -1))
@@ -638,7 +689,8 @@ class MainActivity : Activity() {
         }
 
         val types = listOf(
-            Triple("web", "Servidor Web Completo", "Página inicial, upload/download e endpoints HTTP"),
+            Triple("site", "🌐 Site Web Hospedado", "Hospeda páginas HTML/CSS/JS completas da pasta www com suporte a SPA e rotas"),
+            Triple("web", "Central Web & Arquivos", "Dashboard web com gerenciador, player de mídia e uploads"),
             Triple("files", "Servidor de Arquivos", "Compartilhamento, listagem e transferência de arquivos"),
             Triple("api", "Servidor de API JSON", "Rotas REST, métricas e administração remota")
         )
@@ -848,7 +900,8 @@ class MainActivity : Activity() {
             leftCol.addView(buildWorkerCard())
             leftCol.addView(buildScreenCard(), marginTop(12))
 
-            rightCol.addView(buildStorageCard())
+            rightCol.addView(buildSiteManagerCard())
+            rightCol.addView(buildStorageCard(), marginTop(12))
 
             cols.addView(leftCol, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
             cols.addView(View(this), LinearLayout.LayoutParams(dp(18), 1))
@@ -857,6 +910,7 @@ class MainActivity : Activity() {
         } else {
             val stack = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
             stack.addView(buildWorkerCard())
+            stack.addView(buildSiteManagerCard(), marginTop(12))
             stack.addView(buildScreenCard(), marginTop(12))
             stack.addView(buildStorageCard(), marginTop(12))
             stack
@@ -911,6 +965,179 @@ class MainActivity : Activity() {
             }
         }
         addView(switch)
+    }
+
+    private fun buildSiteManagerCard(): View = card().apply {
+        addView(label("🌐 SITE WEB HOSPEDADO (PASTA WWW)", 13, mint, bold = true))
+        val wwwDir = File(File(filesDir, "hosted"), "www")
+        val fileCount = if (wwwDir.exists()) wwwDir.walkTopDown().count { it.isFile } else 0
+        addView(label("Hospede um site estático ou Single Page Application completo no dispositivo. Os arquivos ficam em /hosted/www e são servidos diretamente na raiz / no perfil 'Site Web Hospedado'.\nAtualmente $fileCount arquivo(s) presentes no site.", 12, textMuted).apply {
+            setPadding(0, dp(4), 0, dp(12))
+            setLineSpacing(dp(3).toFloat(), 1f)
+        })
+
+        val btnRow = LinearLayout(this@MainActivity).apply { orientation = LinearLayout.HORIZONTAL }
+
+        val resetSiteBtn = Button(this@MainActivity).apply {
+            text = "RESTAURAR SITE PADRÃO"
+            textSize = 12f
+            typeface = Typeface.create("sans-serif-medium", Typeface.BOLD)
+            setTextColor(bg)
+            background = roundedDrawable(mint, 0, 0, dp(8).toFloat())
+            setOnClickListener {
+                createDefaultSiteFiles(overwrite = true)
+                Toast.makeText(this@MainActivity, "Site padrão restaurado em /hosted/www com sucesso!", Toast.LENGTH_SHORT).show()
+                renderScreen()
+            }
+        }
+        btnRow.addView(resetSiteBtn, LinearLayout.LayoutParams(0, dp(40), 1f))
+
+        val useProfileBtn = Button(this@MainActivity).apply {
+            text = "ATIVAR PERFIL SITE"
+            textSize = 12f
+            typeface = Typeface.create("sans-serif-medium", Typeface.BOLD)
+            setTextColor(textPrimary)
+            background = roundedDrawable(panelAlt, panelBorder, dp(1), dp(8).toFloat())
+            setOnClickListener {
+                prefs.edit().putString("type", "site").apply()
+                selectedType = "site"
+                Toast.makeText(this@MainActivity, "Perfil 'Site Web Hospedado' ativado!", Toast.LENGTH_SHORT).show()
+                if (service?.snapshot()?.running == true) startServer() else renderScreen()
+            }
+        }
+        btnRow.addView(useProfileBtn, LinearLayout.LayoutParams(0, dp(40), 1f).apply { leftMargin = dp(8) })
+
+        addView(btnRow)
+    }
+
+    private fun ensureSiteTemplate() {
+        val wwwDir = File(File(filesDir, "hosted"), "www")
+        if (!wwwDir.exists() || (wwwDir.listFiles()?.isEmpty() == true)) {
+            createDefaultSiteFiles(overwrite = false)
+        }
+    }
+
+    private fun createDefaultSiteFiles(overwrite: Boolean) {
+        val wwwDir = File(File(filesDir, "hosted"), "www").apply { mkdirs() }
+        val indexFile = File(wwwDir, "index.html")
+        val styleFile = File(wwwDir, "style.css")
+        val appJs = File(wwwDir, "app.js")
+
+        if (overwrite || !indexFile.exists()) {
+            indexFile.writeText(
+                """<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Meu Site no AndServer</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div class="badge">🌐 ANDSERVER WEB HOST</div>
+            <h1>Site Hospedado no Dispositivo</h1>
+            <p class="subtitle">Este site estático completo está rodando diretamente da memória deste celular/tablet Android em HTTPS seguro!</p>
+        </header>
+
+        <section class="card">
+            <h2>✨ Funcionalidades do Site</h2>
+            <div class="features-grid">
+                <div class="feat">
+                    <span class="icon">⚡</span>
+                    <h3>Alta Performance</h3>
+                    <p>Servido diretamente com cache ETag e compressão HTTP em TLS 1.3.</p>
+                </div>
+                <div class="feat">
+                    <span class="icon">📱</span>
+                    <h3>100% Responsivo</h3>
+                    <p>Adaptado perfeitamente para celulares, tablets e navegadores desktop.</p>
+                </div>
+                <div class="feat">
+                    <span class="icon">🛠️</span>
+                    <h3>Fácil de Customizar</h3>
+                    <p>Substitua ou envie seus próprios arquivos HTML/CSS/JS via painel web ou pasta /hosted/www.</p>
+                </div>
+            </div>
+        </section>
+
+        <section class="card interactive">
+            <h2>Testador Interativo de API</h2>
+            <p>Comunique-se em tempo real com o servidor nativo:</p>
+            <div class="button-group">
+                <button id="btnHealth" class="btn">Testar /health</button>
+                <button id="btnStatus" class="btn btn-secondary">Buscar Métricas (/api/status)</button>
+            </div>
+            <pre id="apiOutput" class="code-box">Clique em um botão acima para executar a chamada API...</pre>
+        </section>
+
+        <footer>
+            <p>Hospedado com orgulho no <strong>AndServer</strong> · Android Native Web Server</p>
+        </footer>
+    </div>
+    <script src="app.js"></script>
+</body>
+</html>
+""".trimIndent()
+            )
+        }
+
+        if (overwrite || !styleFile.exists()) {
+            styleFile.writeText(
+                """* { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+body { background: #0b0f17; color: #f8fafc; line-height: 1.6; padding: 32px 16px; min-height: 100vh; display: flex; justify-content: center; }
+.container { max-width: 800px; width: 100%; display: flex; flex-direction: column; gap: 24px; }
+header { text-align: center; padding: 24px 0; }
+.badge { display: inline-block; background: #1a253c; border: 1px solid #263450; color: #10b981; font-weight: 700; font-size: 11px; padding: 5px 12px; border-radius: 99px; margin-bottom: 12px; }
+h1 { font-size: 32px; font-weight: 800; color: #ffffff; letter-spacing: -0.02em; }
+.subtitle { color: #94a3b8; font-size: 15px; margin-top: 8px; max-width: 600px; margin-left: auto; margin-right: auto; }
+.card { background: #131b2c; border: 1px solid #263450; border-radius: 16px; padding: 24px; box-shadow: 0 4px 20px rgba(0,0,0,0.3); }
+.card h2 { font-size: 18px; margin-bottom: 16px; color: #f8fafc; }
+.features-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; }
+.feat { background: #1a253c; border: 1px solid #263450; border-radius: 12px; padding: 18px; }
+.feat .icon { font-size: 26px; display: block; margin-bottom: 8px; }
+.feat h3 { font-size: 15px; margin-bottom: 4px; color: #38bdf8; }
+.feat p { font-size: 13px; color: #94a3b8; }
+.button-group { display: flex; gap: 10px; margin: 14px 0; flex-wrap: wrap; }
+.btn { background: #10b981; color: #0b0f17; border: none; padding: 10px 18px; font-weight: 700; font-size: 13px; border-radius: 8px; cursor: pointer; transition: opacity .2s; }
+.btn:hover { opacity: 0.9; }
+.btn-secondary { background: #263450; color: #f8fafc; }
+.code-box { background: #06090e; border: 1px solid #263450; border-radius: 8px; padding: 12px; font-family: monospace; font-size: 12px; color: #38bdf8; overflow-x: auto; max-height: 200px; }
+footer { text-align: center; color: #64748b; font-size: 12px; margin-top: 16px; }
+footer strong { color: #10b981; }
+""".trimIndent()
+            )
+        }
+
+        if (overwrite || !appJs.exists()) {
+            appJs.writeText(
+                """document.getElementById('btnHealth').addEventListener('click', async () => {
+    const out = document.getElementById('apiOutput');
+    out.textContent = 'Chamando /health...';
+    try {
+        const res = await fetch('/health');
+        const json = await res.json();
+        out.textContent = 'Resposta de /health:\n' + JSON.stringify(json, null, 2);
+    } catch (e) {
+        out.textContent = 'Erro ao conectar: ' + e.message;
+    }
+});
+
+document.getElementById('btnStatus').addEventListener('click', async () => {
+    const out = document.getElementById('apiOutput');
+    out.textContent = 'Chamando /api/status...';
+    try {
+        const res = await fetch('/api/status');
+        const json = await res.json();
+        out.textContent = 'Resposta de /api/status:\n' + JSON.stringify(json, null, 2);
+    } catch (e) {
+        out.textContent = 'Erro ao conectar: ' + e.message;
+    }
+});
+""".trimIndent()
+            )
+        }
     }
 
     private fun buildStorageCard(): View = card().apply {
@@ -1015,9 +1242,10 @@ class MainActivity : Activity() {
     }
 
     private fun serverTypeName(type: String) = when (type) {
+        "site" -> "Site Web Hospedado (www)"
         "files" -> "Servidor de arquivos"
         "api" -> "Servidor de API"
-        else -> "Servidor web"
+        else -> "Central Web & Arquivos"
     }
 
     private fun metric(caption: String, value: String) = LinearLayout(this).apply {

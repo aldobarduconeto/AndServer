@@ -481,7 +481,19 @@ private class LanHttpServer(
                             response(output, 201, "application/json", "{\"token\":\"$token\",\"url\":\"/share/$token\",\"expiresAt\":$expiresAt,\"hours\":$hours}")
                         }
                     }
-                    method in setOf("GET", "HEAD") && (path == "/" || path == "/index.html") -> response(output, 200, "text/html; charset=utf-8", page(), head = isHead)
+                    method in setOf("GET", "HEAD") && (path == "/" || path == "/index.html") -> {
+                        if (type == "site") {
+                            val wwwRoot = File(root, "www")
+                            val siteIndex = File(wwwRoot, "index.html")
+                            if (siteIndex.isFile) {
+                                sendFile(output, siteIndex, attachment = false, head = isHead, rangeHeader = headers["range"], ifNoneMatch = headers["if-none-match"])
+                            } else {
+                                response(output, 200, "text/html; charset=utf-8", page(), head = isHead)
+                            }
+                        } else {
+                            response(output, 200, "text/html; charset=utf-8", page(), head = isHead)
+                        }
+                    }
                     method in setOf("GET", "HEAD") && path == "/health" -> response(output, 200, "application/json; charset=utf-8", "{\"status\":\"ok\"}", head = isHead)
                     method in setOf("GET", "HEAD") && path == "/api/certificate" -> response(output, 200, "application/x-pem-file", certificatePem, head = isHead)
                     method in setOf("GET", "HEAD") && path == "/api/ws-token" -> response(output, 200, "application/json; charset=utf-8", "{\"token\":\"$webSocketToken\"}", head = isHead)
@@ -510,7 +522,7 @@ private class LanHttpServer(
                             val array = json.optJSONArray("filters") ?: org.json.JSONArray(filters.toList())
                             val newFilters = (0 until array.length()).map { array.getString(it) }.toSet()
                             val newPassword = json.optString("password", password)
-                            if (newPort !in 1024..65535 || newType !in setOf("web", "files", "api") || newWorkers !in setOf(2, 4, 8, 12, 16) ||
+                            if (newPort !in 1024..65535 || newType !in setOf("site", "web", "files", "api") || newWorkers !in setOf(2, 4, 8, 12, 16) ||
                                 newFilters.any { it !in setOf("all", "images", "documents", "audio", "video", "archives") } ||
                                 newPassword.isNotEmpty() && newPassword.length < 8) {
                                 response(output, 400, "application/json", "{\"error\":\"Revise porta, perfil, conexoes, filtros e senha\"}")
@@ -590,7 +602,7 @@ private class LanHttpServer(
                         log("${if (existed) "Arquivo atualizado" else "Upload concluido"} · $rel · $contentLength bytes")
                         response(output, if (existed) 200 else 201, "application/json", "{\"saved\":\"${json(rel)}\",\"bytes\":$contentLength}")
                     }
-                    method in setOf("GET", "HEAD") && (path.startsWith("/files/") || type == "web" && path.startsWith("/public/")) -> {
+                    method in setOf("GET", "HEAD") && (path.startsWith("/files/") || type in setOf("web", "site") && path.startsWith("/public/")) -> {
                         val attachment = path.startsWith("/files/")
                         val prefix = if (attachment) "/files/" else "/public/"
                         val rel = path.removePrefix(prefix).trimEnd('/').ifEmpty { "index.html" }
@@ -603,6 +615,31 @@ private class LanHttpServer(
                             else response(output, 404, "text/plain", "Pasta sem arquivo index", head = isHead)
                         } else if (!file.isFile || !allowed(file.name)) response(output, 404, "text/plain", "Arquivo nao encontrado", head = isHead)
                         else sendFile(output, file, attachment, isHead, headers["range"], headers["if-none-match"])
+                    }
+                    method in setOf("GET", "HEAD") && type == "site" -> {
+                        val relPath = path.trimStart('/').ifEmpty { "index.html" }
+                        val targetFile = resolvePath("www/$relPath")
+                        val siteIndex = resolvePath("www/index.html")
+                        when {
+                            targetFile != null && targetFile.isFile && allowed(targetFile.name) -> {
+                                sendFile(output, targetFile, attachment = false, head = isHead, rangeHeader = headers["range"], ifNoneMatch = headers["if-none-match"])
+                            }
+                            targetFile != null && targetFile.isDirectory -> {
+                                val nestedIndex = File(targetFile, "index.html")
+                                if (nestedIndex.isFile && allowed(nestedIndex.name)) {
+                                    sendFile(output, nestedIndex, attachment = false, head = isHead, rangeHeader = headers["range"], ifNoneMatch = headers["if-none-match"])
+                                } else if (siteIndex != null && siteIndex.isFile) {
+                                    sendFile(output, siteIndex, attachment = false, head = isHead, rangeHeader = headers["range"], ifNoneMatch = headers["if-none-match"])
+                                } else {
+                                    response(output, 404, "text/html; charset=utf-8", "<h1>404 Não Encontrado</h1><p>Arquivo ou pasta não encontrado no site.</p>", head = isHead)
+                                }
+                            }
+                            siteIndex != null && siteIndex.isFile && !path.contains('.') -> {
+                                // Fallback para roteamento Single Page Application (React/Vue/Angular)
+                                sendFile(output, siteIndex, attachment = false, head = isHead, rangeHeader = headers["range"], ifNoneMatch = headers["if-none-match"])
+                            }
+                            else -> response(output, 404, "text/html; charset=utf-8", "<h1>404 Arquivo Não Encontrado</h1><p>Recurso não encontrado no site hospedado.</p>", head = isHead)
+                        }
                     }
                     else -> response(output, 404, "application/json; charset=utf-8", "{\"error\":\"Rota nao encontrada\"}")
                 }
@@ -808,7 +845,7 @@ private class LanHttpServer(
     private fun html(s: String) = s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;").replace("'", "&#39;")
 
     private fun page(): String {
-        val typeLabel = when (type) { "files" -> "Servidor de arquivos"; "api" -> "Servidor de API"; else -> "Servidor web" }
+        val typeLabel = when (type) { "site" -> "Site Web Hospedado (www)"; "files" -> "Servidor de arquivos"; "api" -> "Servidor de API"; else -> "Servidor web" }
         val filterLabels = if ("all" in filters) "Todos os formatos" else filters.mapNotNull {
             when (it) { "images" -> "Imagens"; "documents" -> "Documentos"; "audio" -> "Áudio"; "video" -> "Vídeo"; "archives" -> "Compactados"; else -> null }
         }.joinToString(" · ").ifEmpty { "Nenhum formato permitido" }
@@ -974,7 +1011,8 @@ private class LanHttpServer(
                             <div class="field">
                                 <label for="cfgType">Perfil de Servidor</label>
                                 <select id="cfgType">
-                                    <option value="web">Servidor Web Completo</option>
+                                    <option value="site">🌐 Site Web Hospedado (Pasta /www)</option>
+                                    <option value="web">Central Web Completa & Arquivos</option>
                                     <option value="files">Servidor de Arquivos</option>
                                     <option value="api">Servidor de API JSON</option>
                                 </select>
@@ -1032,6 +1070,7 @@ private class LanHttpServer(
                 <section id="api" class="hidden">
                     <div class="card">
                         <h2>Recursos Avançados e Endpoints da API</h2>
+                        <div class="api-endpoint"><code>GET /</code><span style="color:var(--text-muted)">Carrega o Site Web (no perfil 'site') ou Painel Admin</span></div>
                         <div class="api-endpoint"><code>GET /health</code><span style="color:var(--text-muted)">Health check do servidor</span></div>
                         <div class="api-endpoint"><code>GET /api/status</code><span style="color:var(--text-muted)">Métricas, IP público e conexões</span></div>
                         <div class="api-endpoint"><code>GET /api/zip?path={pasta}</code><span style="color:var(--text-muted)">Compactar e baixar pasta completa em ZIP</span></div>

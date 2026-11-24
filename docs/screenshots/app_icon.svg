@@ -1,64 +1,76 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%" style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
   <defs>
-    <filter id="iconShadow" x="-10%" y="-10%" width="120%" height="120%">
-      <feDropShadow dx="0" dy="16" stdDeviation="24" flood-color="#000000" flood-opacity="0.6"/>
+    <!-- Sombra suave e difusa padrão iOS/macOS/Linear -->
+    <filter id="softGlow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="28" result="blur" />
+      <feComposite in="SourceGraphic" in2="blur" operator="over" />
     </filter>
-    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#0b0f17"/>
-      <stop offset="100%" stop-color="#131b2c"/>
+    
+    <filter id="iconDepth" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="20" stdDeviation="28" flood-color="#000000" flood-opacity="0.65" />
+    </filter>
+
+    <!-- Fundo Dark Slate Profundo com sutil iluminação superior -->
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#141C2E" />
+      <stop offset="100%" stop-color="#090D15" />
     </linearGradient>
-    <linearGradient id="emeraldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#34d399"/>
-      <stop offset="100%" stop-color="#059669"/>
+
+    <!-- Borda sutil de vidro / acrílico -->
+    <linearGradient id="borderGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#38BDF8" stop-opacity="0.4" />
+      <stop offset="50%" stop-color="#263450" stop-opacity="0.2" />
+      <stop offset="100%" stop-color="#10B981" stop-opacity="0.4" />
     </linearGradient>
-    <linearGradient id="skyGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#38bdf8"/>
-      <stop offset="100%" stop-color="#0284c7"/>
+
+    <!-- Gradiente do Símbolo Server Cloud: Cyan para Esmeralda -->
+    <linearGradient id="primaryGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#38BDF8" />
+      <stop offset="50%" stop-color="#2DD4BF" />
+      <stop offset="100%" stop-color="#10B981" />
+    </linearGradient>
+
+    <!-- Gradiente da Barra Flutuante Superior -->
+    <linearGradient id="accentGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#38BDF8" />
+      <stop offset="100%" stop-color="#34D399" />
     </linearGradient>
   </defs>
 
   <!-- Fundo Squircle Suave -->
-  <rect x="16" y="16" width="480" height="480" rx="110" fill="url(#bgGrad)" stroke="#263450" stroke-width="4" filter="url(#iconShadow)"/>
+  <rect x="24" y="24" width="464" height="464" rx="116" fill="url(#bgGrad)" stroke="url(#borderGrad)" stroke-width="3" filter="url(#iconDepth)" />
 
-  <!-- Brilho Ambiente Central -->
-  <circle cx="256" cy="240" r="160" fill="#1e293b" opacity="0.4"/>
+  <!-- Luz Ambiente Suave no Centro (Glow Esmeralda/Cyan) -->
+  <circle cx="256" cy="240" r="130" fill="#10B981" opacity="0.08" filter="url(#softGlow)" />
+  <circle cx="256" cy="280" r="100" fill="#38BDF8" opacity="0.08" filter="url(#softGlow)" />
 
-  <!-- Ondas de Sinal Wi-Fi / Rede / Internet (Topo) -->
-  <!-- Onda Superior Externa (Sky Blue) -->
-  <path d="M140 160 A 150 150 0 0 1 372 160" stroke="url(#skyGrad)" stroke-width="16" stroke-linecap="round" fill="none"/>
+  <!-- SÍMBOLO PRINCIPAL: Monograma Geométrico Ultra-Clean -->
+  <!-- Barra de Servidor / Nuvem Superior (Linha Conectada de Transmissão) -->
+  <path d="M168 160 C 200 132, 312 132, 344 160" fill="none" stroke="url(#accentGrad)" stroke-width="18" stroke-linecap="round" />
   
-  <!-- Onda Média (Emerald Green) -->
-  <path d="M178 195 A 105 105 0 0 1 334 195" stroke="url(#emeraldGrad)" stroke-width="16" stroke-linecap="round" fill="none"/>
+  <!-- Torre / Rack Geométrico Moderno Isométrico Minimalista -->
+  <!-- Nível 1: Plataforma Superior -->
+  <rect x="144" y="196" width="224" height="60" rx="18" fill="#182338" stroke="#2B3B59" stroke-width="2.5" />
+  <!-- Ponto Indicador Status Ativo -->
+  <circle cx="180" cy="226" r="8" fill="#38BDF8" />
+  <circle cx="204" cy="226" r="4" fill="#334155" />
+  <!-- Barra de atividade sutil -->
+  <rect x="236" y="222" width="96" height="8" rx="4" fill="#24324B" />
+  <rect x="236" y="222" width="48" height="8" rx="4" fill="#38BDF8" opacity="0.8" />
 
-  <!-- Onda Interna / Ponto Emissor -->
-  <circle cx="256" cy="225" r="14" fill="#38bdf8"/>
+  <!-- Nível 2: Bloco Central de Hospedagem / Dados -->
+  <rect x="144" y="272" width="224" height="60" rx="18" fill="#182338" stroke="#2B3B59" stroke-width="2.5" />
+  <!-- Ponto Indicador Status Esmeralda -->
+  <circle cx="180" cy="302" r="8" fill="#10B981" />
+  <circle cx="204" cy="302" r="4" fill="#334155" />
+  <!-- Barra de atividade sutil -->
+  <rect x="236" y="298" width="96" height="8" rx="4" fill="#24324B" />
+  <rect x="236" y="298" width="68" height="8" rx="4" fill="#10B981" opacity="0.9" />
 
-  <!-- SERVIDOR: Rack Superior (Unidade 1) -->
-  <rect x="130" y="255" width="252" height="70" rx="14" fill="#1a253c" stroke="#263450" stroke-width="3"/>
-  <!-- Slots / Baias de Disco -->
-  <rect x="156" y="280" width="104" height="20" rx="6" fill="#334155"/>
-  <rect x="162" y="286" width="42" height="8" rx="3" fill="#38bdf8"/>
-  <rect x="210" y="286" width="42" height="8" rx="3" fill="#64748b"/>
-  <!-- LED Status Emerald -->
-  <circle cx="346" cy="290" r="10" fill="#10b981"/>
-  <circle cx="346" cy="290" r="5" fill="#a7f3d0"/>
-
-  <!-- SERVIDOR: Rack Inferior (Unidade 2) -->
-  <rect x="130" y="345" width="252" height="70" rx="14" fill="#1a253c" stroke="#263450" stroke-width="3"/>
-  <!-- Slots / Baias de Disco -->
-  <rect x="156" y="370" width="104" height="20" rx="6" fill="#334155"/>
-  <rect x="162" y="376" width="42" height="8" rx="3" fill="#10b981"/>
-  <rect x="210" y="376" width="42" height="8" rx="3" fill="#64748b"/>
-  <!-- LED Status Sky Blue -->
-  <circle cx="346" cy="380" r="10" fill="#38bdf8"/>
-  <circle cx="346" cy="380" r="5" fill="#bae6fd"/>
-
-  <!-- Escudo / Cadeado de Segurança HTTPS TLS 1.3 -->
-  <g transform="translate(256, 420)">
-    <path d="M0 -15 L32 -3 V16 C32 36 18 52 0 60 C-18 52 -32 36 -32 16 V-3 Z" fill="url(#emeraldGrad)" stroke="#0b0f17" stroke-width="4"/>
-    <!-- Cadeado Dentro do Escudo -->
-    <rect x="-10" y="10" width="20" height="18" rx="4" fill="#0b0f17"/>
-    <path d="M-6 10 V4 A6 6 0 0 1 6 4 V10" stroke="#0b0f17" stroke-width="3.5" fill="none"/>
-    <circle cx="0" cy="18" r="2.5" fill="#10b981"/>
-  </g>
+  <!-- Conectividade Base: Feixe Central de Comunicação (Raio Geométrico / Link de Rede) -->
+  <path d="M256 348 L256 388" stroke="url(#primaryGrad)" stroke-width="12" stroke-linecap="round" />
+  
+  <!-- Base de Ancoragem / Antena de Rede -->
+  <circle cx="256" cy="406" r="14" fill="#10B981" />
+  <circle cx="256" cy="406" r="6" fill="#A7F3D0" />
 </svg>
