@@ -1,0 +1,69 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 460 520" width="100%" height="100%" style="background:transparent;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,sans-serif;">
+  <defs>
+    <filter id="shadowModal" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="16" stdDeviation="24" flood-color="#000000" flood-opacity="0.8"/>
+    </filter>
+  </defs>
+
+  <!-- Backdrop -->
+  <rect x="0" y="0" width="460" height="520" rx="16" fill="rgba(11, 15, 23, 0.85)"/>
+
+  <!-- Modal Box -->
+  <rect x="30" y="30" width="400" height="460" rx="20" fill="#131b2c" stroke="#263450" stroke-width="1.5" filter="url(#shadowModal)"/>
+
+  <!-- Close button -->
+  <text x="396" y="62" fill="#94a3b8" font-size="16" cursor="pointer">✕</text>
+
+  <!-- Title & Subtitle -->
+  <text x="54" y="68" fill="#f8fafc" font-size="18" font-weight="800">📱 Conectar via QR Code</text>
+  <text x="54" y="88" fill="#94a3b8" font-size="12">Aponte a câmera do celular ou tablet para acessar:</text>
+
+  <!-- QR Code Container -->
+  <g transform="translate(100, 108)">
+    <rect x="0" y="0" width="260" height="260" rx="16" fill="#ffffff" filter="drop-shadow(0 4px 12px rgba(0,0,0,0.3))"/>
+    
+    <!-- QR Code Pattern Realístico -->
+    <!-- Finders -->
+    <rect x="20" y="20" width="56" height="56" rx="4" fill="#0b0f17"/>
+    <rect x="28" y="28" width="40" height="40" rx="2" fill="#ffffff"/>
+    <rect x="36" y="36" width="24" height="24" rx="2" fill="#0b0f17"/>
+
+    <rect x="184" y="20" width="56" height="56" rx="4" fill="#0b0f17"/>
+    <rect x="192" y="28" width="40" height="40" rx="2" fill="#ffffff"/>
+    <rect x="200" y="36" width="24" height="24" rx="2" fill="#0b0f17"/>
+
+    <rect x="20" y="184" width="56" height="56" rx="4" fill="#0b0f17"/>
+    <rect x="28" y="192" width="40" height="40" rx="2" fill="#ffffff"/>
+    <rect x="36" y="200" width="24" height="24" rx="2" fill="#0b0f17"/>
+
+    <!-- Alignment -->
+    <rect x="176" y="176" width="32" height="32" rx="2" fill="#0b0f17"/>
+    <rect x="184" y="184" width="16" height="16" rx="1" fill="#ffffff"/>
+    <rect x="188" y="188" width="8" height="8" fill="#0b0f17"/>
+
+    <!-- Data matrix bits -->
+    <path fill="#0b0f17" d="
+      M92,24h8v8h-8z M116,24h8v8h-8z M140,24h16v8h-16z
+      M92,40h16v8h-16z M132,40h8v8h-8z M156,40h8v8h-8z
+      M92,56h8v8h-8z M116,56h16v8h-16z M148,56h8v8h-8z
+      M24,92h8v8h-8z M48,92h8v8h-8z M64,92h16v8h-16z M92,92h8v8h-8z M116,92h8v8h-8z M140,92h16v8h-16z M172,92h8v8h-8z M204,92h16v8h-16z
+      M24,108h16v8h-16z M56,108h8v8h-8z M80,108h16v8h-16z M108,108h8v8h-8z M132,108h16v8h-16z M164,108h8v8h-8z M188,108h16v8h-16z
+      M24,124h8v8h-8z M48,124h16v8h-16z M80,124h8v8h-8z M100,124h16v8h-16z M140,124h8v8h-8z M164,124h16v8h-16z M204,124h8v8h-8z
+      M24,140h16v8h-16z M64,140h8v8h-8z M88,140h16v8h-16z M120,140h8v8h-8z M148,140h16v8h-16z M180,140h8v8h-8z M212,140h8v8h-8z
+      M24,156h8v8h-8z M48,156h8v8h-8z M80,156h16v8h-16z M112,156h8v8h-8z M136,156h16v8h-16z M168,156h8v8h-8z M196,156h16v8h-16z
+      M92,188h8v8h-8z M116,188h16v8h-16z M148,188h8v8h-8z
+      M92,204h16v8h-16z M124,204h8v8h-8z M140,204h16v8h-16z
+      M92,220h8v8h-8z M108,220h16v8h-16z M148,220h8v8h-8z
+    "/>
+  </g>
+
+  <!-- URL box -->
+  <text x="230" y="394" fill="#10b981" font-size="13" font-family="monospace" text-anchor="middle">https://192.168.1.105:8443</text>
+
+  <!-- Action Buttons -->
+  <rect x="54" y="420" width="168" height="42" rx="10" fill="#10b981"/>
+  <text x="138" y="446" fill="#0b0f17" font-size="12" font-weight="700" text-anchor="middle">COPIAR LINK</text>
+
+  <rect x="238" y="420" width="168" height="42" rx="10" fill="#1a253c" stroke="#263450" stroke-width="1"/>
+  <text x="322" y="446" fill="#f8fafc" font-size="12" font-weight="700" text-anchor="middle">FECHAR</text>
+</svg>

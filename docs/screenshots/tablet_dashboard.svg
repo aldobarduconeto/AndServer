@@ -1,0 +1,119 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 940 560" width="100%" height="100%" style="background:transparent;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,sans-serif;">
+  <defs>
+    <filter id="shadowTablet" x="-5%" y="-5%" width="110%" height="110%">
+      <feDropShadow dx="0" dy="16" stdDeviation="28" flood-color="#000000" flood-opacity="0.65"/>
+    </filter>
+  </defs>
+
+  <!-- Moldura Tablet -->
+  <rect x="20" y="20" width="900" height="520" rx="30" fill="#0b0f17" stroke="#263450" stroke-width="4" filter="url(#shadowTablet)"/>
+
+  <!-- Top Bar Tablet -->
+  <g transform="translate(48, 44)">
+    <rect x="0" y="0" width="102" height="20" rx="10" fill="#1b263e" stroke="#263450" stroke-width="1"/>
+    <circle cx="10" cy="10" r="3" fill="#10b981"/>
+    <text x="20" y="14" fill="#10b981" font-size="9" font-weight="800" letter-spacing="1">AND SERVER</text>
+
+    <text x="0" y="44" fill="#f8fafc" font-size="22" font-weight="800">Central de Servidor</text>
+    <text x="0" y="60" fill="#94a3b8" font-size="12">Modo Adaptativo para Tablets · Dividido em 2 Colunas</text>
+
+    <!-- Segmented Navigation à direita no header (Tablet layout) -->
+    <rect x="480" y="18" width="364" height="36" rx="10" fill="#131b2c" stroke="#263450" stroke-width="1"/>
+    <rect x="483" y="21" width="118" height="30" rx="8" fill="#10b981"/>
+    <text x="542" y="40" fill="#0b0f17" font-size="11.5" font-weight="700" text-anchor="middle">Visão geral</text>
+    <text x="662" y="40" fill="#94a3b8" font-size="11.5" font-weight="600" text-anchor="middle">Configurar</text>
+    <text x="782" y="40" fill="#94a3b8" font-size="11.5" font-weight="600" text-anchor="middle">Ajustes</text>
+  </g>
+
+  <!-- Divisor -->
+  <line x1="20" y1="126" x2="920" y2="126" stroke="#263450" stroke-width="1"/>
+
+  <!-- Duas Colunas do Tablet -->
+  <!-- COLUNA ESQUERDA: Status, Controle e Segurança -->
+  <g transform="translate(48, 144)">
+    <!-- Cartão 1: Status e Endereços -->
+    <rect x="0" y="0" width="390" height="236" rx="16" fill="#131b2c" stroke="#263450" stroke-width="1"/>
+    <rect x="16" y="14" width="76" height="22" rx="11" fill="#064e3b"/>
+    <text x="54" y="29" fill="#10b981" font-size="10" font-weight="800" text-anchor="middle">● ONLINE</text>
+
+    <rect x="98" y="14" width="134" height="22" rx="11" fill="#0c4a6e"/>
+    <text x="165" y="29" fill="#38bdf8" font-size="9.5" font-weight="800" text-anchor="middle">🌍 TODA A INTERNET</text>
+
+    <text x="374" y="29" fill="#64748b" font-size="10" text-anchor="end">🔒 TLS 1.3</text>
+
+    <text x="16" y="58" fill="#f8fafc" font-size="16" font-weight="700">Servidor ativo e respondendo</text>
+
+    <!-- Caixa LAN -->
+    <rect x="16" y="70" width="358" height="42" rx="8" fill="#1a253c"/>
+    <text x="26" y="86" fill="#64748b" font-size="8.5" font-weight="800">ENDEREÇO NA REDE LOCAL</text>
+    <text x="26" y="103" fill="#ffffff" font-size="12" font-family="monospace">https://192.168.1.105:8443</text>
+
+    <!-- Caixa WAN -->
+    <rect x="16" y="118" width="358" height="42" rx="8" fill="#1a253c"/>
+    <text x="26" y="134" fill="#38bdf8" font-size="8.5" font-weight="800">ENDEREÇO NA INTERNET (GLOBAL / WAN)</text>
+    <text x="26" y="151" fill="#ffffff" font-size="12" font-family="monospace">https://187.102.44.89:8443</text>
+
+    <!-- Botões -->
+    <rect x="16" y="172" width="220" height="44" rx="10" fill="#b91c1c"/>
+    <text x="126" y="199" fill="#ffffff" font-size="12" font-weight="700" text-anchor="middle">PARAR SERVIDOR</text>
+
+    <rect x="244" y="172" width="130" height="44" rx="10" fill="#1a253c" stroke="#263450" stroke-width="1"/>
+    <text x="309" y="199" fill="#f8fafc" font-size="12" font-weight="700" text-anchor="middle">📱 QR CODE</text>
+
+    <!-- Cartão 2: Resumo do Perfil -->
+    <g transform="translate(0, 248)">
+      <rect x="0" y="0" width="390" height="126" rx="14" fill="#131b2c" stroke="#263450" stroke-width="1"/>
+      <text x="16" y="24" fill="#64748b" font-size="9.5" font-weight="800" letter-spacing="0.5">PERFIL E CONEXÃO</text>
+      <text x="16" y="46" fill="#94a3b8" font-size="11.5">Perfil: Servidor Web Completo</text>
+      <text x="16" y="64" fill="#94a3b8" font-size="11.5">Modo de Rede: Toda a Internet (WAN)</text>
+      <text x="16" y="82" fill="#94a3b8" font-size="11.5">Porta: 8443 · Protocolo: HTTPS / TLS 1.3</text>
+      <text x="16" y="100" fill="#10b981" font-size="11.5">Escudo Força Bruta: Ativo (Auto-Ban após 5 falhas)</text>
+    </g>
+  </g>
+
+  <!-- COLUNA DIREITA: Atividade e Eventos ao Vivo -->
+  <g transform="translate(460, 144)">
+    <text x="0" y="10" fill="#10b981" font-size="10.5" font-weight="800" letter-spacing="0.8">ATIVIDADE DO SERVIDOR</text>
+    
+    <rect x="0" y="18" width="432" height="154" rx="14" fill="#131b2c" stroke="#263450" stroke-width="1"/>
+    
+    <!-- 6 Métricas -->
+    <rect x="12" y="28" width="128" height="52" rx="8" fill="#1a253c"/>
+    <text x="20" y="44" fill="#64748b" font-size="8.5" font-weight="800">REQUISIÇÕES</text>
+    <text x="20" y="68" fill="#f8fafc" font-size="16" font-weight="800">142</text>
+
+    <rect x="152" y="28" width="128" height="52" rx="8" fill="#1a253c"/>
+    <text x="160" y="44" fill="#64748b" font-size="8.5" font-weight="800">CONEXÕES</text>
+    <text x="160" y="68" fill="#f8fafc" font-size="16" font-weight="800">4 ativas</text>
+
+    <rect x="292" y="28" width="128" height="52" rx="8" fill="#1a253c"/>
+    <text x="300" y="44" fill="#64748b" font-size="8.5" font-weight="800">ARQUIVOS</text>
+    <text x="300" y="68" fill="#f8fafc" font-size="16" font-weight="800">28</text>
+
+    <rect x="12" y="88" width="128" height="52" rx="8" fill="#1a253c"/>
+    <text x="20" y="104" fill="#64748b" font-size="8.5" font-weight="800">TEMPO ATIVO</text>
+    <text x="20" y="128" fill="#f8fafc" font-size="16" font-weight="800">02:45:18</text>
+
+    <rect x="152" y="88" width="128" height="52" rx="8" fill="#1a253c"/>
+    <text x="160" y="104" fill="#64748b" font-size="8.5" font-weight="800">RECEBIDO</text>
+    <text x="160" y="128" fill="#f8fafc" font-size="16" font-weight="800">14.2 MB</text>
+
+    <rect x="292" y="88" width="128" height="52" rx="8" fill="#1a253c"/>
+    <text x="300" y="104" fill="#64748b" font-size="8.5" font-weight="800">ENVIADO</text>
+    <text x="300" y="128" fill="#f8fafc" font-size="16" font-weight="800">128.5 MB</text>
+
+    <!-- Terminal de Logs Tablet -->
+    <g transform="translate(0, 188)">
+      <text x="0" y="10" fill="#10b981" font-size="10.5" font-weight="800" letter-spacing="0.8">REGISTRO DE EVENTOS RECENTES</text>
+      <rect x="0" y="18" width="432" height="168" rx="14" fill="#131b2c" stroke="#263450" stroke-width="1"/>
+      <rect x="10" y="26" width="412" height="152" rx="8" fill="#1a253c"/>
+      <text x="20" y="48" fill="#94a3b8" font-size="10.5" font-family="monospace">17:44:12  GET /api/files · 192.168.1.108</text>
+      <text x="20" y="68" fill="#94a3b8" font-size="10.5" font-family="monospace">17:43:55  Download ZIP concluído · relatorio.zip</text>
+      <text x="20" y="88" fill="#94a3b8" font-size="10.5" font-family="monospace">17:42:30  Link temporário criado · foto.jpg (24h)</text>
+      <text x="20" y="108" fill="#10b981" font-size="10.5" font-family="monospace">17:41:04  IP Público detectado · 187.102.44.89</text>
+      <text x="20" y="128" fill="#38bdf8" font-size="10.5" font-family="monospace">17:40:01  Servidor iniciado · Modo: Toda a Internet</text>
+      <text x="20" y="148" fill="#94a3b8" font-size="10.5" font-family="monospace">17:39:40  Escudo Anti-Força Bruta inicializado</text>
+      <text x="20" y="166" fill="#64748b" font-size="10.5" font-family="monospace">17:39:35  Keystore TLS 1.3 carregado com sucesso</text>
+    </g>
+  </g>
+</svg>

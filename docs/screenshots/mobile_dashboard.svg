@@ -1,0 +1,132 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 840" width="100%" height="100%" style="background:transparent;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,sans-serif;">
+  <defs>
+    <filter id="shadow" x="-5%" y="-5%" width="110%" height="110%">
+      <feDropShadow dx="0" dy="16" stdDeviation="24" flood-color="#000000" flood-opacity="0.6"/>
+    </filter>
+    <linearGradient id="primaryGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#10b981"/>
+      <stop offset="100%" stop-color="#059669"/>
+    </linearGradient>
+    <linearGradient id="skyGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#38bdf8"/>
+      <stop offset="100%" stop-color="#0284c7"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Moldura do Smartphone -->
+  <rect x="15" y="15" width="390" height="810" rx="42" fill="#0b0f17" stroke="#263450" stroke-width="4" filter="url(#shadow)"/>
+  
+  <!-- Notch / Câmera -->
+  <rect x="150" y="24" width="120" height="20" rx="10" fill="#05070a"/>
+  <circle cx="230" cy="34" r="4.5" fill="#1e293b"/>
+
+  <!-- Status Bar -->
+  <text x="45" y="40" fill="#94a3b8" font-size="11" font-weight="600">17:45</text>
+  <text x="345" y="40" fill="#94a3b8" font-size="11" font-weight="600">5G 98%</text>
+
+  <!-- Header -->
+  <g transform="translate(35, 68)">
+    <rect x="0" y="0" width="102" height="22" rx="11" fill="#1b263e" stroke="#263450" stroke-width="1"/>
+    <circle cx="11" cy="11" r="3.5" fill="#10b981"/>
+    <text x="21" y="15" fill="#10b981" font-size="9.5" font-weight="800" letter-spacing="1">AND SERVER</text>
+    
+    <text x="0" y="44" fill="#f8fafc" font-size="20" font-weight="800">Central de Servidor</text>
+    <text x="0" y="60" fill="#94a3b8" font-size="11.5">Servidor HTTPS seguro na rede e internet</text>
+  </g>
+
+  <!-- Segmented Navigation Bar -->
+  <g transform="translate(35, 144)">
+    <rect x="0" y="0" width="350" height="38" rx="10" fill="#131b2c" stroke="#263450" stroke-width="1"/>
+    <rect x="3" y="3" width="112" height="32" rx="8" fill="#10b981"/>
+    <text x="59" y="23" fill="#0b0f17" font-size="11.5" font-weight="700" text-anchor="middle">Visão geral</text>
+    <text x="175" y="23" fill="#94a3b8" font-size="11.5" font-weight="600" text-anchor="middle">Configurar</text>
+    <text x="291" y="23" fill="#94a3b8" font-size="11.5" font-weight="600" text-anchor="middle">Ajustes</text>
+  </g>
+
+  <!-- Linha divisória -->
+  <line x1="15" y1="194" x2="405" y2="194" stroke="#263450" stroke-width="1"/>
+
+  <!-- Cartão Principal de Status -->
+  <g transform="translate(35, 208)">
+    <rect x="0" y="0" width="350" height="236" rx="16" fill="#131b2c" stroke="#263450" stroke-width="1"/>
+    
+    <!-- Badges de Status -->
+    <rect x="14" y="14" width="82" height="22" rx="11" fill="#064e3b"/>
+    <text x="55" y="29" fill="#10b981" font-size="10" font-weight="800" text-anchor="middle">● ONLINE</text>
+
+    <rect x="102" y="14" width="134" height="22" rx="11" fill="#0c4a6e"/>
+    <text x="169" y="29" fill="#38bdf8" font-size="9.5" font-weight="800" text-anchor="middle">🌍 TODA A INTERNET</text>
+
+    <text x="336" y="29" fill="#64748b" font-size="10" text-anchor="end">🔒 TLS 1.3</text>
+
+    <text x="14" y="58" fill="#f8fafc" font-size="15" font-weight="700">Servidor ativo para toda a Internet</text>
+
+    <!-- Endereço Local -->
+    <rect x="14" y="70" width="322" height="46" rx="10" fill="#1a253c" stroke="#263450" stroke-width="1"/>
+    <text x="24" y="86" fill="#64748b" font-size="8.5" font-weight="800" letter-spacing="0.5">ENDEREÇO LOCAL (LAN)</text>
+    <text x="24" y="104" fill="#ffffff" font-size="12" font-family="monospace">https://192.168.1.105:8443</text>
+    <text x="324" y="98" fill="#10b981" font-size="13" text-anchor="end">📋</text>
+
+    <!-- Endereço WAN -->
+    <rect x="14" y="122" width="322" height="46" rx="10" fill="#1a253c" stroke="#263450" stroke-width="1"/>
+    <text x="24" y="138" fill="#38bdf8" font-size="8.5" font-weight="800" letter-spacing="0.5">ENDEREÇO PÚBLICO (INTERNET / WAN)</text>
+    <text x="24" y="156" fill="#ffffff" font-size="12" font-family="monospace">https://187.102.44.89:8443</text>
+    <text x="324" y="150" fill="#38bdf8" font-size="13" text-anchor="end">📋</text>
+
+    <!-- Botões de Ação -->
+    <rect x="14" y="178" width="194" height="44" rx="10" fill="#b91c1c"/>
+    <text x="111" y="205" fill="#ffffff" font-size="12" font-weight="700" text-anchor="middle">PARAR SERVIDOR</text>
+
+    <rect x="216" y="178" width="120" height="44" rx="10" fill="#1a253c" stroke="#263450" stroke-width="1"/>
+    <text x="276" y="205" fill="#f8fafc" font-size="12" font-weight="700" text-anchor="middle">📱 QR CODE</text>
+  </g>
+
+  <!-- Métricas do Servidor -->
+  <g transform="translate(35, 458)">
+    <text x="0" y="12" fill="#10b981" font-size="10.5" font-weight="800" letter-spacing="0.8">ATIVIDADE DO SERVIDOR</text>
+    
+    <rect x="0" y="20" width="350" height="176" rx="16" fill="#131b2c" stroke="#263450" stroke-width="1"/>
+
+    <!-- Grid 2x3 -->
+    <!-- Col 1 -->
+    <rect x="12" y="32" width="158" height="42" rx="8" fill="#1a253c"/>
+    <text x="22" y="47" fill="#64748b" font-size="8.5" font-weight="800">REQUISIÇÕES</text>
+    <text x="22" y="65" fill="#f8fafc" font-size="15" font-weight="800">142</text>
+
+    <rect x="12" y="80" width="158" height="42" rx="8" fill="#1a253c"/>
+    <text x="22" y="95" fill="#64748b" font-size="8.5" font-weight="800">ARQUIVOS</text>
+    <text x="22" y="113" fill="#f8fafc" font-size="15" font-weight="800">28</text>
+
+    <rect x="12" y="128" width="158" height="42" rx="8" fill="#1a253c"/>
+    <text x="22" y="143" fill="#64748b" font-size="8.5" font-weight="800">DADOS RECEBIDOS</text>
+    <text x="22" y="161" fill="#f8fafc" font-size="15" font-weight="800">14.2 MB</text>
+
+    <!-- Col 2 -->
+    <rect x="180" y="32" width="158" height="42" rx="8" fill="#1a253c"/>
+    <text x="190" y="47" fill="#64748b" font-size="8.5" font-weight="800">CONEXÕES ATIVAS</text>
+    <text x="190" y="65" fill="#f8fafc" font-size="15" font-weight="800">4</text>
+
+    <rect x="180" y="80" width="158" height="42" rx="8" fill="#1a253c"/>
+    <text x="190" y="95" fill="#64748b" font-size="8.5" font-weight="800">TEMPO ATIVO</text>
+    <text x="190" y="113" fill="#f8fafc" font-size="15" font-weight="800">02:45:18</text>
+
+    <rect x="180" y="128" width="158" height="42" rx="8" fill="#1a253c"/>
+    <text x="190" y="143" fill="#64748b" font-size="8.5" font-weight="800">DADOS ENVIADOS</text>
+    <text x="190" y="161" fill="#f8fafc" font-size="15" font-weight="800">128.5 MB</text>
+  </g>
+
+  <!-- Registro Recente -->
+  <g transform="translate(35, 668)">
+    <text x="0" y="12" fill="#10b981" font-size="10.5" font-weight="800" letter-spacing="0.8">REGISTRO DE EVENTOS (AO VIVO)</text>
+    <rect x="0" y="20" width="350" height="120" rx="14" fill="#131b2c" stroke="#263450" stroke-width="1"/>
+    <rect x="10" y="28" width="330" height="104" rx="8" fill="#1a253c"/>
+    <text x="20" y="48" fill="#94a3b8" font-size="10" font-family="monospace">17:44:12  GET /api/files · 192.168.1.108</text>
+    <text x="20" y="66" fill="#94a3b8" font-size="10" font-family="monospace">17:43:55  Download ZIP gerado · relatorio.zip</text>
+    <text x="20" y="84" fill="#94a3b8" font-size="10" font-family="monospace">17:42:30  Link temporário criado · foto.jpg (24h)</text>
+    <text x="20" y="102" fill="#10b981" font-size="10" font-family="monospace">17:41:04  IP Público detectado · 187.102.44.89</text>
+    <text x="20" y="120" fill="#38bdf8" font-size="10" font-family="monospace">17:40:01  Servidor iniciado · Modo: Toda a Internet</text>
+  </g>
+
+  <!-- Barra inferior / Home indicator -->
+  <rect x="145" y="812" width="130" height="4" rx="2" fill="#475569"/>
+</svg>
