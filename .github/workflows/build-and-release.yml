@@ -58,7 +58,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_type == 'tag' && github.ref_name || format('v1.0.{0}', github.run_number) }}
-          name: ${{ github.ref_type == 'tag' && github.ref_name || format('AndServer Build #{0}', github.run_number) }}
+          name: AndServer Build #${{ github.run_number }}
           body: |
             ## 🚀 AndServer Android APK
 
