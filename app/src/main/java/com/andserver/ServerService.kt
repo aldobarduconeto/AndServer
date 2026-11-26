@@ -179,7 +179,19 @@ private class LanHttpServer(
     private val openSockets = java.util.concurrent.ConcurrentHashMap.newKeySet<Socket>()
     private val fileCount = AtomicInteger(0)
     private val fileScanner = ScheduledThreadPoolExecutor(1, java.util.concurrent.ThreadFactory { task -> Thread(task, "AndServer-FileIndex").apply { isDaemon = true } })
-    private val clients = ThreadPoolExecutor(workers, workers, 0L, TimeUnit.MILLISECONDS, ArrayBlockingQueue<Runnable>(64))
+    private val clients = ThreadPoolExecutor(
+        workers,
+        workers * 2,
+        60L,
+        TimeUnit.SECONDS,
+        java.util.concurrent.LinkedBlockingQueue<Runnable>(256),
+        java.util.concurrent.ThreadFactory { task ->
+            Thread(task, "AndServer-Worker").apply {
+                isDaemon = true
+                priority = Thread.NORM_PRIORITY
+            }
+        }
+    ).apply { allowCoreThreadTimeOut(true) }
     private val webSocketPeers = java.util.concurrent.ConcurrentHashMap.newKeySet<WebSocketPeer>()
     private val webSocketToken = android.util.Base64.encodeToString(ByteArray(32).also { SecureRandom().nextBytes(it) }, android.util.Base64.URL_SAFE or android.util.Base64.NO_WRAP or android.util.Base64.NO_PADDING)
     @Volatile private var socket: ServerSocket? = null
@@ -211,11 +223,15 @@ private class LanHttpServer(
                 val tlsListener = tlsContext.serverSocketFactory.createServerSocket() as javax.net.ssl.SSLServerSocket
                 tlsListener.enabledProtocols = tlsListener.supportedProtocols.filter { it == "TLSv1.3" || it == "TLSv1.2" }.toTypedArray()
                 tlsListener.reuseAddress = true
-                tlsListener.bind(InetSocketAddress(port), 64)
+                tlsListener.bind(InetSocketAddress(port), 128)
                 tlsListener.use { listener ->
                     socket = listener
                     while (running.get()) {
                         val client = listener.accept()
+                        client.tcpNoDelay = true
+                        client.keepAlive = true
+                        client.sendBufferSize = 64 * 1024
+                        client.receiveBufferSize = 64 * 1024
                         openSockets.add(client)
                         try { clients.execute { handle(client) } }
                         catch (_: RejectedExecutionException) {
@@ -533,6 +549,29 @@ private class LanHttpServer(
                             }
                         } catch (_: Exception) { response(output, 400, "application/json", "{\"error\":\"JSON de configuracao invalido\"}") }
                     }
+                    method in setOf("GET", "HEAD") && path == "/api/update" -> {
+                        val updater = GithubReleaseUpdater()
+                        val currentVersion = try {
+                            packageManager.getPackageInfo(packageName, 0).versionName ?: "1.0"
+                        } catch (_: Exception) { "1.0" }
+                        val check = try { updater.checkUpdate(currentVersion) } catch (e: Exception) { null }
+                        val json = org.json.JSONObject()
+                        json.put("currentVersion", currentVersion)
+                        json.put("updateAvailable", check?.updateAvailable ?: false)
+                        json.put("message", check?.message ?: "Não foi possível verificar atualizações no momento")
+                        if (check?.latestRelease != null) {
+                            val rel = check.latestRelease
+                            val relObj = org.json.JSONObject()
+                                .put("tag", rel.tag)
+                                .put("name", rel.name)
+                                .put("notes", rel.notes)
+                                .put("downloadUrl", rel.downloadUrl)
+                                .put("sizeBytes", rel.sizeBytes)
+                                .put("publishedAt", rel.publishedAt)
+                            json.put("latestRelease", relObj)
+                        }
+                        response(output, 200, "application/json; charset=utf-8", json.toString(), head = isHead)
+                    }
                     method in setOf("GET", "HEAD") && path == "/api/status" -> {
                         val body = """{"name":"AndServer","scheme":"https","websocket":"wss","type":"$type","port":$port,"networkScope":"$networkScope","publicIp":"${publicIp ?: ""}","requests":${requests.get()},"clients":${activeClients.get() + clients.queue.size},"files":${fileCount.get()},"bytesReceived":${bytesReceived.get()},"bytesSent":${bytesSent.get()},"uptimeSeconds":${((System.currentTimeMillis() - startedAt.get()) / 1000).coerceAtLeast(0)}}"""
                         response(output, 200, "application/json; charset=utf-8", body, head = isHead)
@@ -784,8 +823,16 @@ private class LanHttpServer(
         val status = if (partial) "206 Partial Content" else "200 OK"
         out.write("HTTP/1.1 $status\r\nDate: ${httpDate()}\r\nServer: AndServer/1.0\r\nContent-Type: ${mimeType(file.name)}\r\nContent-Length: $length\r\nAccept-Ranges: bytes\r\nETag: $etag\r\nLast-Modified: ${httpDate(file.lastModified())}\r\nCache-Control: public, max-age=0, must-revalidate\r\nContent-Disposition: $disposition; filename=\"$name\"; filename*=UTF-8''${urlPath(file.name)}\r\n${if (partial) "Content-Range: bytes $start-$end/$size\r\n" else ""}Connection: close\r\n\r\n".toByteArray(Charsets.UTF_8))
         if (!head && length > 0) java.io.RandomAccessFile(file, "r").use { raf ->
-            raf.seek(start); val buffer = ByteArray(32 * 1024); var remaining = length
-            while (remaining > 0) { val read = raf.read(buffer, 0, minOf(buffer.size.toLong(), remaining).toInt()); if (read < 0) break; out.write(buffer, 0, read); bytesSent.addAndGet(read.toLong()); remaining -= read }
+            raf.seek(start)
+            val buffer = ByteArray(64 * 1024)
+            var remaining = length
+            while (remaining > 0) {
+                val read = raf.read(buffer, 0, minOf(buffer.size.toLong(), remaining).toInt())
+                if (read < 0) break
+                out.write(buffer, 0, read)
+                bytesSent.addAndGet(read.toLong())
+                remaining -= read
+            }
         }
         out.flush()
     }
@@ -1073,6 +1120,7 @@ private class LanHttpServer(
                         <div class="api-endpoint"><code>GET /</code><span style="color:var(--text-muted)">Carrega o Site Web (no perfil 'site') ou Painel Admin</span></div>
                         <div class="api-endpoint"><code>GET /health</code><span style="color:var(--text-muted)">Health check do servidor</span></div>
                         <div class="api-endpoint"><code>GET /api/status</code><span style="color:var(--text-muted)">Métricas, IP público e conexões</span></div>
+                        <div class="api-endpoint"><code>GET /api/update</code><span style="color:var(--text-muted)">Verificar atualizações oficiais do GitHub em tempo real</span></div>
                         <div class="api-endpoint"><code>GET /api/zip?path={pasta}</code><span style="color:var(--text-muted)">Compactar e baixar pasta completa em ZIP</span></div>
                         <div class="api-endpoint"><code>POST /api/share</code><span style="color:var(--text-muted)">Criar link temporário expirável (1h, 24h, 7d)</span></div>
                         <div class="api-endpoint"><code>GET /share/{token}</code><span style="color:var(--text-muted)">Download por token temporário sem expor senha</span></div>

@@ -16,15 +16,25 @@ android {
         applicationId = "com.andserver"
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = providers.gradleProperty("VERSION_CODE").getOrElse("1").toInt()
+        versionName = providers.gradleProperty("VERSION_NAME").getOrElse("1.0")
     }
 
     buildTypes {
         release {
             isMinifyEnabled = false
-            // Permite que o APK de release seja assinado e instalável diretamente para distribuição
-            signingConfig = signingConfigs.getByName("debug")
+            val keystorePath = providers.environmentVariable("ANDROID_KEYSTORE_PATH").orNull
+            val storePassword = providers.environmentVariable("ANDROID_KEYSTORE_PASSWORD").orNull
+            val keyAlias = providers.environmentVariable("ANDROID_KEY_ALIAS").orNull
+            val keyPassword = providers.environmentVariable("ANDROID_KEY_PASSWORD").orNull
+            signingConfig = if (listOf(keystorePath, storePassword, keyAlias, keyPassword).all { !it.isNullOrBlank() }) {
+                signingConfigs.create("releaseDistribution") {
+                    storeFile = file(keystorePath!!)
+                    this.storePassword = storePassword
+                    this.keyAlias = keyAlias
+                    this.keyPassword = keyPassword
+                }
+            } else signingConfigs.getByName("debug")
         }
     }
 }

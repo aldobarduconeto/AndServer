@@ -198,6 +198,7 @@ O AndServer inclui suporte de primeira classe para transformar seu dispositivo e
 | `GET` | `/{arquivo}` | Aberto / Básica | Recursos estáticos do site hospedado (`index.html`, `style.css`, `app.js`, imagens, etc.) |
 | `GET` | `/health` | Aberto | Retorna `{"status":"ok"}` para monitoramento e health check |
 | `GET` | `/api/status` | Básica (se ativa) | Métricas, uptime, conexões, tráfego de dados e IP público |
+| `GET` | `/api/update` | Básica (se ativa) | Consulta a versão mais recente e notas de release do GitHub |
 | `GET` | `/api/system` | Básica (se ativa) | Recursos de hardware (CPU, modelo, memória JVM) |
 | `GET` | `/api/logs` | Básica (se ativa) | Últimos 500 registros de conexões em JSON |
 | `GET` | `/api/logs.txt` | Básica (se ativa) | Histórico de log em texto puro |
@@ -253,6 +254,12 @@ O repositório possui uma pipeline completa configurada em [.github/workflows/bu
 3. Publica automaticamente os APKs na aba **Releases** do repositório:
    - **`AndServer-release.apk`**: APK assinado e pronto para instalar diretamente no celular ou tablet.
    - **`AndServer-debug.apk`**: APK com símbolos de depuração.
+
+### Atualizador pelo GitHub Releases
+
+Na aba **Atualizações**, o aplicativo consulta `releases/latest` do GitHub, localiza `AndServer-release.apk`, valida o pacote e o número da versão, baixa o arquivo por HTTPS e abre uma sessão do instalador nativo do Android. A instalação exige confirmação do usuário. Não há backend próprio. Como o app instala APKs, o Android pode pedir que o usuário permita instalações para AndServer nas configurações do sistema.
+
+Para manter as atualizações instaláveis sobre versões anteriores, configure nos Secrets do repositório `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS` e `ANDROID_KEY_PASSWORD`. A keystore deve ser a mesma usada nas versões já distribuídas. O workflow falha se esses Secrets estiverem ausentes; usar uma chave nova fará o Android rejeitar a atualização por incompatibilidade de assinatura. As releases antigas deste workflow usavam a chave de depuração temporária do runner; por isso, a primeira versão assinada com a keystore persistente precisa ser instalada manualmente. Depois disso, as atualizações podem ser instaladas pelo app. O pipeline define `versionCode` crescente pelo número da execução e atualiza `versionName` pela tag ou build.
 
 ---
 

@@ -2,12 +2,16 @@ package com.andserver
 
 import android.Manifest
 import android.app.Activity
+import android.app.AlertDialog
 import android.app.Dialog
+import android.app.PendingIntent
+import android.content.BroadcastReceiver
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.ServiceConnection
 import android.content.pm.PackageManager
 import android.content.res.ColorStateList
@@ -19,6 +23,8 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
+import android.content.pm.PackageInstaller
+import android.net.Uri
 import android.text.InputType
 import android.view.Gravity
 import android.view.View
@@ -70,6 +76,22 @@ class MainActivity : Activity() {
     private var dashboardLog: TextView? = null
     private var dashboardProfile: TextView? = null
     private val filters = linkedSetOf<String>()
+    private val releaseUpdater = GithubReleaseUpdater()
+    private var releaseAction: Button? = null
+    private var releaseBusy = false
+    private var releaseReceiverRegistered = false
+    private val installReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) {
+            when (intent.getIntExtra(PackageInstaller.EXTRA_STATUS, PackageInstaller.STATUS_FAILURE)) {
+                PackageInstaller.STATUS_PENDING_USER_ACTION -> {
+                    val confirmation = intent.getParcelableExtra<Intent>(Intent.EXTRA_INTENT)
+                    if (confirmation != null) startActivity(confirmation.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                }
+                PackageInstaller.STATUS_SUCCESS -> Toast.makeText(this@MainActivity, "Atualização instalada.", Toast.LENGTH_LONG).show()
+                else -> Toast.makeText(this@MainActivity, "Instalação não concluída: ${intent.getStringExtra(PackageInstaller.EXTRA_STATUS_MESSAGE) ?: "verifique a assinatura do APK"}", Toast.LENGTH_LONG).show()
+            }
+        }
+    }
 
     private val isTablet: Boolean
         get() = resources.configuration.smallestScreenWidthDp >= 600 || resources.configuration.screenWidthDp >= 640
@@ -123,6 +145,7 @@ class MainActivity : Activity() {
 
     override fun onDestroy() {
         handler.removeCallbacks(refreshTask)
+        if (releaseReceiverRegistered) unregisterReceiver(installReceiver)
         super.onDestroy()
     }
 
@@ -238,7 +261,7 @@ class MainActivity : Activity() {
             setPadding(dp(4), dp(4), dp(4), dp(4))
         }
 
-        val navTitles = listOf("Visão geral", "Configurar", "Ajustes")
+        val navTitles = listOf("Visão geral", "Configurar", "Atualizar", "Ajustes")
         navButtons = navTitles.mapIndexed { index, title ->
             Button(this).apply {
                 text = title
@@ -303,8 +326,201 @@ class MainActivity : Activity() {
         when (screen) {
             0 -> renderDashboard()
             1 -> renderSetup()
+            2 -> renderUpdates()
             else -> renderSettings()
         }
+    }
+
+    private var releaseStatusText: TextView? = null
+    private var releaseProgressBar: ProgressBar? = null
+
+    private fun renderUpdates() {
+        sectionTitle("Atualizações", "Consulte GitHub Releases e instale com confirmação do Android")
+
+        val currentVersion = try { packageManager.getPackageInfo(packageName, 0).versionName ?: "1.0" } catch (_: Exception) { "1.0" }
+
+        val statusCard = card().apply {
+            addView(label("VERSÃO ATUAL INSTALADA", 11, skyBlue, bold = true))
+            addView(label(currentVersion, 22, textPrimary, bold = true).apply { setPadding(0, dp(4), 0, dp(8)) })
+            releaseStatusText = label("Toque no botão abaixo para verificar se há novas versões disponíveis no GitHub.", 13, textMuted).apply {
+                setLineSpacing(dp(3).toFloat(), 1f)
+            }
+            addView(releaseStatusText)
+
+            releaseProgressBar = ProgressBar(this@MainActivity, null, android.R.attr.progressBarStyleHorizontal).apply {
+                isIndeterminate = false
+                max = 100
+                progress = 0
+                visibility = View.GONE
+            }
+            addView(releaseProgressBar, marginTop(10))
+        }
+        body.addView(statusCard)
+
+        releaseAction = Button(this).apply {
+            text = "VERIFICAR ATUALIZAÇÕES"; isAllCaps = false; setTextColor(bg)
+            typeface = Typeface.create("sans-serif-medium", Typeface.BOLD)
+            background = roundedDrawable(skyBlue, 0, 0, dp(10).toFloat())
+            setOnClickListener { checkForRelease() }
+        }
+        body.addView(releaseAction, LinearLayout.LayoutParams(-1, dp(52)).apply { topMargin = dp(12) })
+
+        val note = TextView(this).apply {
+            text = "As atualizações são validadas criptograficamente e obtidas de forma segura diretamente das releases do GitHub. O instalador nativo do Android sempre solicita sua confirmação prévia."
+            setTextColor(textSubtle); textSize = 12f; setPadding(0, dp(12), 0, 0)
+        }
+        body.addView(note)
+    }
+
+    private fun checkForRelease() {
+        if (releaseBusy) return
+        releaseBusy = true
+        releaseAction?.isEnabled = false
+        releaseAction?.text = "Consultando GitHub…"
+        releaseStatusText?.text = "Verificando se há novas versões disponíveis..."
+        releaseProgressBar?.visibility = View.GONE
+
+        Thread {
+            try {
+                val currentVersion = try { packageManager.getPackageInfo(packageName, 0).versionName ?: "1.0" } catch (_: Exception) { "1.0" }
+                val check = releaseUpdater.checkUpdate(currentVersion, forceRefresh = true)
+                runOnUiThread {
+                    releaseBusy = false
+                    releaseAction?.isEnabled = true
+                    releaseAction?.text = "VERIFICAR ATUALIZAÇÕES"
+
+                    if (check.latestRelease == null) {
+                        releaseStatusText?.text = check.message
+                        showUpdaterMessage("Consulta de versão", check.message)
+                        return@runOnUiThread
+                    }
+
+                    val release = check.latestRelease
+                    val sizeFormatted = formatBytes(release.sizeBytes)
+                    val sizeText = if (release.sizeBytes > 0) " · Tamanho: $sizeFormatted" else ""
+
+                    if (check.updateAvailable) {
+                        releaseStatusText?.text = "Nova versão ${release.tag} disponível para download!"
+                        AlertDialog.Builder(this)
+                            .setTitle("Nova versão encontrada: ${release.name.ifBlank { release.tag }}")
+                            .setMessage("Versão instalada: $currentVersion\nNova versão: ${release.tag}$sizeText\n\nNotas da versão:\n${release.notes.take(1800).ifBlank { "Sem notas de versão." }}")
+                            .setNegativeButton("Agora não", null)
+                            .setPositiveButton("Baixar e instalar") { _, _ -> downloadRelease(release) }
+                            .show()
+                    } else {
+                        releaseStatusText?.text = "O aplicativo está atualizado na versão mais recente ($currentVersion)."
+                        showUpdaterMessage("Você já está atualizado", "Sua versão instalada ($currentVersion) é a mais recente disponível.")
+                    }
+                }
+            } catch (e: Exception) {
+                runOnUiThread {
+                    releaseBusy = false
+                    releaseAction?.isEnabled = true
+                    releaseAction?.text = "VERIFICAR ATUALIZAÇÕES"
+                    releaseStatusText?.text = "Falha ao consultar releases: ${e.message}"
+                    showUpdaterMessage("Falha ao consultar releases", e.message ?: "Verifique sua conexão de rede e tente novamente.")
+                }
+            }
+        }.start()
+    }
+
+    private fun downloadRelease(release: GithubReleaseUpdater.Release) {
+        releaseBusy = true
+        releaseAction?.isEnabled = false
+        releaseAction?.text = "Baixando atualização… 0%"
+        releaseStatusText?.text = "Iniciando download do pacote ${release.tag}..."
+        releaseProgressBar?.apply {
+            visibility = View.VISIBLE
+            isIndeterminate = false
+            progress = 0
+        }
+
+        Thread {
+            val apk = File(cacheDir, "AndServer-update.apk")
+            try {
+                releaseUpdater.download(release, apk) { downloaded, total, percent ->
+                    runOnUiThread {
+                        releaseProgressBar?.progress = percent
+                        releaseAction?.text = "Baixando atualização… $percent%"
+                        releaseStatusText?.text = "Baixando: ${formatBytes(downloaded)} de ${formatBytes(total)} ($percent%)"
+                    }
+                }
+
+                val info = packageManager.getPackageArchiveInfo(apk.absolutePath, 0)
+                    ?: throw IllegalStateException("O arquivo baixado não é um APK válido.")
+                if (info.packageName != packageName) throw IllegalStateException("O APK pertence a outro aplicativo.")
+
+                runOnUiThread {
+                    releaseBusy = false
+                    releaseAction?.isEnabled = true
+                    releaseAction?.text = "VERIFICAR ATUALIZAÇÕES"
+                    releaseStatusText?.text = "Download concluído! Abrindo instalador do Android..."
+                    releaseProgressBar?.visibility = View.GONE
+                    installDownloadedRelease(apk)
+                }
+            } catch (e: Exception) {
+                apk.delete()
+                runOnUiThread {
+                    releaseBusy = false
+                    releaseAction?.isEnabled = true
+                    releaseAction?.text = "VERIFICAR ATUALIZAÇÕES"
+                    releaseProgressBar?.visibility = View.GONE
+                    releaseStatusText?.text = "Falha ao baixar: ${e.message}"
+                    showUpdaterMessage("Falha ao baixar atualização", e.message ?: "Tente novamente.")
+                }
+            }
+        }.start()
+    }
+
+    private fun installDownloadedRelease(apk: File) {
+        if (Build.VERSION.SDK_INT >= 26 && !packageManager.canRequestPackageInstalls()) {
+            Toast.makeText(this, "Permita instalações para AndServer e toque em Buscar atualização novamente.", Toast.LENGTH_LONG).show()
+            startActivity(Intent(android.provider.Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:$packageName")))
+            return
+        }
+        try {
+            val installer = packageManager.packageInstaller
+            val params = PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL)
+            params.setAppPackageName(packageName)
+            val sessionId = installer.createSession(params)
+            installer.openSession(sessionId).use { session ->
+                apk.inputStream().use { input -> session.openWrite("AndServer-update.apk", 0, apk.length()).use { output -> input.copyTo(output); session.fsync(output) } }
+                if (!releaseReceiverRegistered) {
+                    val filter = IntentFilter("com.andserver.INSTALL_STATUS")
+                    registerInstallReceiver(filter)
+                    releaseReceiverRegistered = true
+                }
+                val callback = Intent("com.andserver.INSTALL_STATUS").setPackage(packageName)
+                val pending = PendingIntent.getBroadcast(this, sessionId, callback, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE)
+                session.commit(pending.intentSender)
+            }
+        } catch (e: Exception) { showUpdaterMessage("Não foi possível iniciar a instalação", e.message ?: "Tente novamente.") }
+    }
+
+    private fun showUpdaterMessage(title: String, message: String) {
+        if (!isFinishing) AlertDialog.Builder(this).setTitle(title).setMessage(message).setPositiveButton("OK", null).show()
+    }
+
+    private class AlreadyCurrentException : Exception()
+
+    @Suppress("DEPRECATION")
+    private fun registerInstallReceiver(filter: IntentFilter) {
+        if (Build.VERSION.SDK_INT >= 33) registerReceiver(installReceiver, filter, RECEIVER_NOT_EXPORTED)
+        else registerReceiver(installReceiver, filter)
+    }
+
+    private fun sectionTitle(title: String, subtitle: String) {
+        body.addView(label(title, 22, textPrimary, bold = true))
+        body.addView(label(subtitle, 13, textMuted).apply { setPadding(0, dp(4), 0, dp(14)) })
+    }
+
+    private fun actionButton(title: String, action: () -> Unit) {
+        val button = Button(this).apply {
+            text = title; isAllCaps = false; setTextColor(bg)
+            background = roundedDrawable(mint, 0, 0, dp(10).toFloat())
+            setOnClickListener { action() }
+        }
+        body.addView(button, LinearLayout.LayoutParams(-1, dp(52)).apply { topMargin = dp(12) })
     }
 
     private fun renderDashboard() {
