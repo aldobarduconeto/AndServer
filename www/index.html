@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#0b0f17">
+    <title>AndServer · Web Host</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="ambient-glow"></div>
+
+    <div class="page-wrapper">
+        <!-- Barra de Navegação Clean -->
+        <header class="navbar">
+            <div class="brand">
+                <div class="brand-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <rect x="2" y="2" width="20" height="8" rx="2" ry="2"></rect>
+                        <rect x="2" y="14" width="20" height="8" rx="2" ry="2"></rect>
+                        <line x1="6" y1="6" x2="6.01" y2="6"></line>
+                        <line x1="6" y1="18" x2="6.01" y2="18"></line>
+                    </svg>
+                </div>
+                <div class="brand-text">
+                    <span class="brand-name">AndServer</span>
+                    <span class="brand-pill">Web Engine</span>
+                </div>
+            </div>
+
+            <div class="nav-actions">
+                <div class="status-indicator" id="serverLiveStatus">
+                    <span class="pulse-dot"></span>
+                    <span class="status-label">Servidor Online</span>
+                </div>
+                <button id="themeToggle" class="btn-icon" title="Alternar Tema Claro/Escuro" aria-label="Alternar tema">
+                    <svg id="themeIconSun" class="icon-theme" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="5"></circle>
+                        <line x1="12" y1="1" x2="12" y2="3"></line>
+                        <line x1="12" y1="21" x2="12" y2="23"></line>
+                        <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+                        <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+                        <line x1="1" y1="12" x2="3" y2="12"></line>
+                        <line x1="21" y1="12" x2="23" y2="12"></line>
+                        <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+                        <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+                    </svg>
+                    <svg id="themeIconMoon" class="icon-theme hidden" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+                    </svg>
+                </button>
+            </div>
+        </header>
+
+        <!-- Hero Minimalista -->
+        <main class="content-container">
+            <section class="hero-section">
+                <div class="eyebrow-badge">
+                    <span class="badge-dot"></span>
+                    <span>Hospedagem Web Nativa no Android</span>
+                </div>
+                <h1 class="hero-title">Site Moderno &amp; Clean em Alta Performance</h1>
+                <p class="hero-subtitle">
+                    Esta página está sendo servida diretamente da memória deste dispositivo móvel, protegida por criptografia TLS 1.3 de ponta a ponta e zero dependências externas.
+                </p>
+
+                <!-- Barra com detalhes de conexão ativa -->
+                <div class="host-pill">
+                    <div class="host-item">
+                        <span class="host-label">HOST / ENDEREÇO</span>
+                        <span class="host-value" id="currentHost">Detectando...</span>
+                    </div>
+                    <div class="host-divider"></div>
+                    <div class="host-item">
+                        <span class="host-label">PROTOCOLO</span>
+                        <span class="host-value accent-cyan" id="currentProto">HTTPS / TLS 1.3</span>
+                    </div>
+                    <div class="host-divider"></div>
+                    <div class="host-item">
+                        <span class="host-label">LATÊNCIA MÉDIA</span>
+                        <span class="host-value accent-mint" id="currentPing">-- ms</span>
+                    </div>
+                </div>
+
+                <div class="cta-actions">
+                    <a href="#playground" class="btn btn-primary">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="btn-svg">
+                            <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                        </svg>
+                        Testar API Nativa
+                    </a>
+                    <a href="/public/" class="btn btn-secondary" target="_blank" rel="noopener">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="btn-svg">
+                            <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
+                        </svg>
+                        Explorador de Arquivos
+                    </a>
+                </div>
+            </section>
+
+            <!-- Cards de Telemetria / Métricas do Servidor -->
+            <section class="metrics-grid">
+                <div class="metric-card">
+                    <div class="metric-header">
+                        <span class="metric-title">ESTADO DO NÓ</span>
+                        <div class="metric-icon-box mint">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                                <polyline points="22 4 12 14.01 9 11.01"></polyline>
+                            </svg>
+                        </div>
+                    </div>
+                    <div class="metric-val" id="metricStatus">Ativo &amp; Estável</div>
+                    <div class="metric-meta">Disponível em rede local &amp; WAN</div>
+                </div>
+
+                <div class="metric-card">
+                    <div class="metric-header">
+                        <span class="metric-title">SEGURANÇA</span>
+                        <div class="metric-icon-box cyan">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                                <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                            </svg>
+                        </div>
+                    </div>
+                    <div class="metric-val">TLS 1.3 / X.509</div>
+                    <div class="metric-meta">Android Keystore Isolado</div>
+                </div>
+
+                <div class="metric-card">
+                    <div class="metric-header">
+                        <span class="metric-title">ARQUITETURA</span>
+                        <div class="metric-icon-box purple">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M16.5 9.4 7.55 4.24a1.78 1.78 0 0 0-2.5 1.55v12.42a1.78 1.78 0 0 0 2.5 1.55L16.5 14.6a1.78 1.78 0 0 0 0-3.2z"></path>
+                            </svg>
+                        </div>
+                    </div>
+                    <div class="metric-val">Kotlin Nativo</div>
+                    <div class="metric-meta">0 dependências externas</div>
+                </div>
+
+                <div class="metric-card">
+                    <div class="metric-header">
+                        <span class="metric-title">CACHE &amp; ASSETS</span>
+                        <div class="metric-icon-box amber">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
+                            </svg>
+                        </div>
+                    </div>
+                    <div class="metric-val">ETag + 32KB</div>
+                    <div class="metric-meta">Streaming de baixa latência</div>
+                </div>
+            </section>
+
+            <!-- Grid de Recursos e Funcionalidades -->
+            <section class="features-section">
+                <div class="section-heading">
+                    <span class="section-tag">CARACTERÍSTICAS</span>
+                    <h2 class="section-title">Construído para Eficiência Absoluta</h2>
+                    <p class="section-desc">Um servidor completo projetado desde o primeiro byte para ser seguro, leve e econômico.</p>
+                </div>
+
+                <div class="features-grid">
+                    <div class="feature-card">
+                        <div class="feature-icon">⚡</div>
+                        <h3>Desempenho Instantâneo</h3>
+                        <p>Respostas em tempo recorde com conexões HTTP Keep-Alive persistentes e validação inteligente de cache ETag.</p>
+                    </div>
+
+                    <div class="feature-card">
+                        <div class="feature-icon">📱</div>
+                        <h3>Design 100% Responsivo</h3>
+                        <p>Layout limpo e fluido que se adapta automaticamente a smartphones, tablets dobráveis e monitores ultrawide.</p>
+                    </div>
+
+                    <div class="feature-card">
+                        <div class="feature-icon">🛡️</div>
+                        <h3>Defesa &amp; Firewall Integrado</h3>
+                        <p>Proteção automática contra ataques de força bruta, controle de concorrência e certificados assinados dinamicamente.</p>
+                    </div>
+
+                    <div class="feature-card">
+                        <div class="feature-icon">📂</div>
+                        <h3>Totalmente Customizável</h3>
+                        <p>Coloque seus arquivos HTML, CSS, JavaScript ou Single Page Application (SPA) na pasta <code>/hosted/www</code>.</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Console Interativo de API -->
+            <section id="playground" class="playground-section">
+                <div class="section-heading">
+                    <span class="section-tag">PLAYGROUND INTERATIVO</span>
+                    <h2 class="section-title">Console de Testes de API</h2>
+                    <p class="section-desc">Interaja em tempo real com os endpoints do servidor Android nativo:</p>
+                </div>
+
+                <div class="console-box">
+                    <div class="console-toolbar">
+                        <div class="console-actions">
+                            <button id="btnHealth" class="chip active">GET /health</button>
+                            <button id="btnStatus" class="chip">GET /api/status</button>
+                            <button id="btnFiles" class="chip">GET /api/files</button>
+                        </div>
+                        <div class="console-meta">
+                            <span id="responseStatus" class="response-status">200 OK</span>
+                            <span id="responseTimer" class="response-timer">0 ms</span>
+                            <button id="btnCopy" class="btn-copy" title="Copiar resposta">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="copy-svg">
+                                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                                </svg>
+                                <span id="copyText">Copiar</span>
+                            </button>
+                        </div>
+                    </div>
+                    <pre id="apiOutput" class="code-view"><code>Clique em uma das rotas acima para testar a comunicação em tempo real...</code></pre>
+                </div>
+            </section>
+
+            <!-- Como Personalizar -->
+            <section class="guide-section">
+                <div class="guide-card">
+                    <div class="guide-step-num">1</div>
+                    <div class="guide-content">
+                        <h4>Acesse o Painel Web ou App</h4>
+                        <p>No aplicativo Android ou pelo navegador em <code>/</code>, abra o gerenciador de arquivos.</p>
+                    </div>
+                </div>
+                <div class="guide-card">
+                    <div class="guide-step-num">2</div>
+                    <div class="guide-content">
+                        <h4>Edite a Pasta <code>/hosted/www</code></h4>
+                        <p>Substitua este <code>index.html</code>, adicione folhas de estilo, fontes e assets do seu projeto.</p>
+                    </div>
+                </div>
+                <div class="guide-card">
+                    <div class="guide-step-num">3</div>
+                    <div class="guide-content">
+                        <h4>Compartilhe com o Mundo</h4>
+                        <p>Utilize a rede Wi-Fi local ou o modo Internet (WAN) para acessar seu site de qualquer lugar.</p>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <!-- Footer Clean -->
+        <footer class="footer">
+            <div class="footer-inner">
+                <div class="footer-brand">
+                    <span class="footer-title">AndServer</span>
+                    <span class="footer-sub">Android Native Web Server</span>
+                </div>
+                <div class="footer-security">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="lock-svg">
+                        <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                        <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                    </svg>
+                    <span>Conexão Local Segura &amp; Criptografada</span>
+                </div>
+            </div>
+        </footer>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
