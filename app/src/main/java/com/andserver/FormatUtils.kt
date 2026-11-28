@@ -95,23 +95,23 @@ object FormatUtils {
      */
     fun urlPath(s: String): String =
         s.split('/').joinToString("/") { URLEncoder.encode(it, "UTF-8").replace("+", "%20") }
+}
 
-    /**
-     * Lê uma linha ASCII terminada em \n ou \r\n com limite máximo de bytes para evitar DoS de memória.
-     */
-    fun BufferedInputStream.readLineAscii(max: Int): String? {
-        val out = ByteArrayOutputStream(64)
-        var count = 0
-        while (count < max) {
-            val b = read()
-            if (b < 0) {
-                if (out.size() == 0) return null
-                break
-            }
-            count++
-            if (b == '\n'.code) break
-            if (b != '\r'.code) out.write(b)
+/**
+ * Lê uma linha ASCII terminada em \n ou \r\n com limite máximo de bytes para evitar DoS de memória.
+ */
+fun BufferedInputStream.readLineAscii(max: Int): String? {
+    val out = ByteArrayOutputStream(64)
+    var count = 0
+    while (count < max) {
+        val b = read()
+        if (b < 0) {
+            if (out.size() == 0) return null
+            break
         }
-        return out.toString("US-ASCII")
+        count++
+        if (b == '\n'.code) break
+        if (b != '\r'.code) out.write(b)
     }
+    return out.toString("US-ASCII")
 }

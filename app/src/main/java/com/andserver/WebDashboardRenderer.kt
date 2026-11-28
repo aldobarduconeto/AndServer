@@ -1,4 +1,4 @@
-﻿﻿package com.andserver
+package com.andserver
 
 import java.io.File
 
@@ -34,7 +34,16 @@ object WebDashboardRenderer {
         </style></head><body><header>$up<h1>Explorador de Arquivos</h1><div class="path-sub">/${FormatUtils.escapeHtml(rel)}</div></header><main class="card">${if (items.isEmpty()) """<div style="padding:24px;text-align:center;color:var(--text-muted)">Nenhum arquivo nesta pasta.</div>""" else items}</main></body></html>"""
     }
 
-    fun renderWebDashboard(type: String, filters: Set<String>, passwordEnabled: Boolean, networkScope: String): String {
+    fun renderWebDashboard(
+        type: String,
+        filters: Set<String>,
+        passwordEnabled: Boolean,
+        networkScope: String,
+        port: Int,
+        workers: Int,
+        publicIp: String?,
+        webSocketToken: String
+    ): String {
         val typeLabel = ServerProfiles.nameOf(type)
         val filterLabels = if ("all" in filters) "Todos os formatos" else filters.mapNotNull {
             when (it) { "images" -> "Imagens"; "documents" -> "Documentos"; "audio" -> "Áudio"; "video" -> "Vídeo"; "archives" -> "Compactados"; else -> null }

@@ -1,4 +1,4 @@
-﻿package com.andserver
+package com.andserver
 
 import java.io.File
 

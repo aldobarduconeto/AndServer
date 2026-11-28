@@ -37,7 +37,6 @@ import javax.net.ssl.SSLContext
 import javax.net.ssl.SSLServerSocket
 import org.json.JSONArray
 import org.json.JSONObject
-import com.andserver.FormatUtils.readLineAscii
 
 /**
  * Servidor HTTP/HTTPS e WebDAV de alta performance e baixo consumo energético.
@@ -458,10 +457,10 @@ class LanHttpServer(
                             if (siteIndex.isFile) {
                                 sendFile(output, siteIndex, attachment = false, head = isHead, rangeHeader = headers["range"], ifNoneMatch = headers["if-none-match"])
                             } else {
-                                response(output, 200, "text/html; charset=utf-8", WebDashboardRenderer.renderWebDashboard(type, filters, password.isNotEmpty(), networkScope), head = isHead, acceptGzip = acceptsGzip)
+                                response(output, 200, "text/html; charset=utf-8", WebDashboardRenderer.renderWebDashboard(type, filters, password.isNotEmpty(), networkScope, port, effectiveWorkers, publicIp, webSocketToken), head = isHead, acceptGzip = acceptsGzip)
                             }
                         } else {
-                            response(output, 200, "text/html; charset=utf-8", WebDashboardRenderer.renderWebDashboard(type, filters, password.isNotEmpty(), networkScope), head = isHead, acceptGzip = acceptsGzip)
+                            response(output, 200, "text/html; charset=utf-8", WebDashboardRenderer.renderWebDashboard(type, filters, password.isNotEmpty(), networkScope, port, effectiveWorkers, publicIp, webSocketToken), head = isHead, acceptGzip = acceptsGzip)
                         }
                     }
                     method in setOf("GET", "HEAD") && path == "/health" -> response(output, 200, "application/json; charset=utf-8", "{\"status\":\"ok\"}", head = isHead)
