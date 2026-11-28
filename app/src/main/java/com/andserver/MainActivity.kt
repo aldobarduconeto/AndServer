@@ -1,55 +1,39 @@
 package com.andserver
 
-import android.Manifest
 import android.app.Activity
-import android.app.AlertDialog
-import android.app.Dialog
 import android.app.PendingIntent
 import android.content.BroadcastReceiver
-import android.content.ClipData
-import android.content.ClipboardManager
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.ServiceConnection
-import android.content.pm.PackageManager
-import android.content.res.ColorStateList
+import android.content.pm.PackageInstaller
 import android.graphics.Color
 import android.graphics.Typeface
-import android.graphics.drawable.GradientDrawable
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
-import android.content.pm.PackageInstaller
-import android.net.Uri
-import android.text.InputType
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
-import android.view.Window
 import android.view.WindowInsets
-import android.widget.*
+import android.view.WindowManager
+import android.widget.Button
+import android.widget.ImageView
+import android.widget.LinearLayout
+import android.widget.ScrollView
+import android.widget.Toast
 import java.io.File
-import java.net.NetworkInterface
 
+/**
+ * Atividade principal e Shell visual do AndServer.
+ * Responsável pela coordenação de janelas edge-to-edge, navegação em abas responsivas
+ * (layout para telefones e tablets), vinculação com ServerService e despacho das telas.
+ */
 class MainActivity : Activity() {
-    // Paleta moderna e clean (Dark Slate, Emerald & Sky Blue)
-    private val bg = Color.rgb(11, 15, 23)           // #0B0F17 Superfície de fundo profunda
-    private val panel = Color.rgb(19, 27, 44)        // #131B2C Cartões e seções
-    private val panelAlt = Color.rgb(27, 38, 62)     // #1B263E Superfície interna/destaque
-    private val panelBorder = Color.rgb(38, 52, 80)  // #263450 Bordas sutis
-    private val mint = Color.rgb(16, 185, 129)       // #10B981 Emerald vibrante
-    private val mintDark = Color.rgb(6, 78, 59)      // #064E3B Fundo do badge ativo
-    private val skyBlue = Color.rgb(56, 189, 248)    // #38BDF8 Sky Blue para Internet WAN
-    private val skyBlueDark = Color.rgb(12, 74, 110) // #0C4A6E Fundo do badge WAN
-    private val textPrimary = Color.rgb(248, 250, 252) // #F8FAFC Texto principal
-    private val textMuted = Color.rgb(148, 163, 184)   // #94A3B8 Texto secundário
-    private val textSubtle = Color.rgb(100, 116, 139)  // #64748B Legendas menores
-    private val amber = Color.rgb(245, 158, 11)        // #F59E0B Alerta/Inativo
-    private val amberDark = Color.rgb(120, 53, 15)     // #78350F Fundo inativo
 
     private val prefs by lazy { getSharedPreferences("andserver", MODE_PRIVATE) }
     private val handler = Handler(Looper.getMainLooper())
@@ -58,27 +42,16 @@ class MainActivity : Activity() {
     private var screen = 0
     private var service: ServerService? = null
     private var bound = false
+
     private var selectedType = "web"
-    private var selectedScope = "local" // "local" vs "internet"
-    private var typeRadios: List<RadioButton> = emptyList()
-    private var scopeRadios: List<RadioButton> = emptyList()
-    private val fileChecks = linkedMapOf<String, CheckBox>()
-    private val metricViews = linkedMapOf<String, TextView>()
-    private var dashboardBuilt = false
-    private var dashboardBadge: TextView? = null
-    private var dashboardScopeBadge: TextView? = null
-    private var dashboardTitle: TextView? = null
-    private var dashboardAddressLan: TextView? = null
-    private var dashboardAddressWan: TextView? = null
-    private var wanAddressBox: View? = null
-    private var dashboardAction: Button? = null
-    private var dashboardQrBtn: Button? = null
-    private var dashboardLog: TextView? = null
-    private var dashboardProfile: TextView? = null
+    private var selectedScope = "local"
     private val filters = linkedSetOf<String>()
-    private val releaseUpdater = GithubReleaseUpdater()
-    private var releaseAction: Button? = null
-    private var releaseBusy = false
+
+    private lateinit var dashboardView: DashboardView
+    private lateinit var setupView: SetupView
+    private lateinit var settingsView: SettingsView
+    private lateinit var updatesView: UpdatesView
+
     private var releaseReceiverRegistered = false
     private val installReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
@@ -93,83 +66,105 @@ class MainActivity : Activity() {
         }
     }
 
-    private val isTablet: Boolean
+    val isTablet: Boolean
         get() = resources.configuration.smallestScreenWidthDp >= 600 || resources.configuration.screenWidthDp >= 640
 
     private val connection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName?, binder: IBinder?) {
             service = (binder as? ServerService.LocalBinder)?.service()
+            bound = true
             renderScreen()
         }
         override fun onServiceDisconnected(name: ComponentName?) {
             service = null
+            bound = false
             renderScreen()
         }
     }
 
-    private val refreshTask = object : Runnable {
+    private val ticker = object : Runnable {
         override fun run() {
-            if (screen == 0 && ::body.isInitialized) updateDashboard()
+            if (screen == 0) {
+                dashboardView.update(service?.snapshot(), selectedScope, selectedType, isTablet)
+            }
             handler.postDelayed(this, 1000)
         }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        window.statusBarColor = bg
-        window.navigationBarColor = bg
+
         selectedType = prefs.getString("type", "web") ?: "web"
         selectedScope = prefs.getString("network_scope", "local") ?: "local"
-        filters.addAll(prefs.getStringSet("filters", setOf("all")) ?: setOf("all"))
-        buildShell()
-        applyKeepScreenOn()
-        ensureSiteTemplate()
-        renderScreen()
-        handler.post(refreshTask)
+        val savedFilters = prefs.getStringSet("filters", null)
+        filters.clear()
+        if (savedFilters.isNullOrEmpty()) filters.add("all") else filters.addAll(savedFilters)
 
-        if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
-            requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 12)
+        // Inicialização dos módulos de telas
+        dashboardView = DashboardView(this)
+        setupView = SetupView(this) {
+            if (service?.snapshot()?.running == true) startServer()
+            screen = 0
+            renderScreen()
         }
+        settingsView = SettingsView(
+            this,
+            onRestartServer = { showDashboard -> startServer(showDashboard) },
+            onRefreshScreen = { renderScreen() }
+        )
+        updatesView = UpdatesView(this) { filter -> registerInstallReceiver(filter) }
+
+        applyKeepScreenOn()
+        val loc = prefs.getString("storage_location", "internal") ?: "internal"
+        val activeBase = if (loc == "external") (getExternalFilesDir(null) ?: filesDir) else filesDir
+        SiteTemplateManager.ensureSiteTemplate(File(activeBase, "hosted"))
+        buildShell()
+        renderScreen()
     }
 
     override fun onStart() {
         super.onStart()
-        bound = bindService(Intent(this, ServerService::class.java), connection, Context.BIND_AUTO_CREATE)
+        bindService(Intent(this, ServerService::class.java), connection, Context.BIND_AUTO_CREATE)
+        handler.post(ticker)
     }
 
     override fun onStop() {
-        if (bound) unbindService(connection)
-        bound = false
         super.onStop()
+        handler.removeCallbacks(ticker)
+        if (bound) {
+            unbindService(connection)
+            bound = false
+        }
     }
 
     override fun onDestroy() {
-        handler.removeCallbacks(refreshTask)
-        if (releaseReceiverRegistered) unregisterReceiver(installReceiver)
+        if (releaseReceiverRegistered) {
+            try { unregisterReceiver(installReceiver) } catch (_: Exception) { }
+            releaseReceiverRegistered = false
+        }
         super.onDestroy()
     }
 
     private fun buildShell() {
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setBackgroundColor(bg)
+            setBackgroundColor(UiTheme.bg)
             fitsSystemWindows = false
         }
 
-        // Suporte total a SafeArea (WindowInsets) para entalhes/câmeras de tela e barras do sistema
-        val baseHeaderPadH = if (isTablet) dp(32) else dp(20)
-        val baseHeaderPadTop = if (isTablet) dp(24) else dp(18)
-        val baseBodyPadH = if (isTablet) dp(32) else dp(18)
-        val baseBodyPadV = if (isTablet) dp(20) else dp(14)
+        val baseHeaderPadH = if (isTablet) UiTheme.dp(this, 32) else UiTheme.dp(this, 20)
+        val baseHeaderPadTop = if (isTablet) UiTheme.dp(this, 24) else UiTheme.dp(this, 18)
+        val baseBodyPadH = if (isTablet) UiTheme.dp(this, 32) else UiTheme.dp(this, 18)
+        val baseBodyPadV = if (isTablet) UiTheme.dp(this, 20) else UiTheme.dp(this, 14)
 
         val header = LinearLayout(this).apply {
             orientation = if (isTablet) LinearLayout.HORIZONTAL else LinearLayout.VERTICAL
             gravity = if (isTablet) Gravity.CENTER_VERTICAL else Gravity.START
-            setPadding(baseHeaderPadH, baseHeaderPadTop, baseHeaderPadH, dp(14))
+            setPadding(baseHeaderPadH, baseHeaderPadTop, baseHeaderPadH, UiTheme.dp(this, 14))
         }
 
         val scroll = ScrollView(this).apply {
-            setFillViewport(true)
+            isFillViewport = true
             isVerticalScrollBarEnabled = false
             clipToPadding = false
         }
@@ -179,10 +174,10 @@ class MainActivity : Activity() {
             gravity = Gravity.CENTER_HORIZONTAL
         }
 
-        val contentMaxWidth = if (isTablet) dp(980) else ViewGroup.LayoutParams.MATCH_PARENT
+        val contentMaxWidth = if (isTablet) UiTheme.dp(this, 980) else ViewGroup.LayoutParams.MATCH_PARENT
         body = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(baseBodyPadH, baseBodyPadV, baseBodyPadH, dp(36))
+            setPadding(baseBodyPadH, baseBodyPadV, baseBodyPadH, UiTheme.dp(this, 36))
             clipToPadding = false
         }
 
@@ -196,13 +191,13 @@ class MainActivity : Activity() {
                     baseHeaderPadH + safeInsets.left,
                     baseHeaderPadTop + safeInsets.top,
                     baseHeaderPadH + safeInsets.right,
-                    dp(14)
+                    UiTheme.dp(this, 14)
                 )
                 body.setPadding(
                     baseBodyPadH + safeInsets.left,
                     baseBodyPadV,
                     baseBodyPadH + safeInsets.right,
-                    dp(36) + safeInsets.bottom
+                    UiTheme.dp(this, 36) + safeInsets.bottom
                 )
                 insets
             }
@@ -217,13 +212,13 @@ class MainActivity : Activity() {
                     baseHeaderPadH + leftSafe,
                     baseHeaderPadTop + topSafe,
                     baseHeaderPadH + rightSafe,
-                    dp(14)
+                    UiTheme.dp(this, 14)
                 )
                 body.setPadding(
                     baseBodyPadH + leftSafe,
                     baseBodyPadV,
                     baseBodyPadH + rightSafe,
-                    dp(36) + bottomSafe
+                    UiTheme.dp(this, 36) + bottomSafe
                 )
                 insets
             }
@@ -237,28 +232,28 @@ class MainActivity : Activity() {
         val tagLayout = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            background = roundedDrawable(panelAlt, panelBorder, dp(1), dp(16).toFloat())
-            setPadding(dp(8), dp(4), dp(12), dp(4))
+            background = UiTheme.roundedDrawable(this@MainActivity, UiTheme.panelAlt, UiTheme.panelBorder, UiTheme.dp(this@MainActivity, 1), UiTheme.dp(this@MainActivity, 16).toFloat())
+            setPadding(UiTheme.dp(this@MainActivity, 8), UiTheme.dp(this@MainActivity, 4), UiTheme.dp(this@MainActivity, 12), UiTheme.dp(this@MainActivity, 4))
         }
         val appIcon = ImageView(this).apply {
             setImageResource(R.mipmap.ic_launcher)
         }
-        tagLayout.addView(appIcon, LinearLayout.LayoutParams(dp(18), dp(18)).apply { rightMargin = dp(6) })
-        tagLayout.addView(label("AND SERVER", 11, mint, bold = true))
+        tagLayout.addView(appIcon, LinearLayout.LayoutParams(UiTheme.dp(this, 18), UiTheme.dp(this, 18)).apply { rightMargin = UiTheme.dp(this@MainActivity, 6) })
+        tagLayout.addView(UiTheme.label(this, "AND SERVER", 11, UiTheme.mint, bold = true))
         titleContainer.addView(tagLayout, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT))
 
-        val appTitle = label("Central de Servidor", if (isTablet) 28 else 24, textPrimary, bold = true).apply {
-            setPadding(0, dp(6), 0, dp(2))
+        val appTitle = UiTheme.label(this, "Central de Servidor", if (isTablet) 28 else 24, UiTheme.textPrimary, bold = true).apply {
+            setPadding(0, UiTheme.dp(this@MainActivity, 6), 0, UiTheme.dp(this@MainActivity, 2))
         }
-        val appSubtitle = label("Servidor HTTPS local e internet com proteção anti-força bruta", 13, textMuted)
+        val appSubtitle = UiTheme.label(this, "Servidor HTTPS local e internet com proteção anti-força bruta", 13, UiTheme.textMuted)
         titleContainer.addView(appTitle)
         titleContainer.addView(appSubtitle)
         header.addView(titleContainer)
 
         val navWrapper = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
-            background = roundedDrawable(panel, panelBorder, dp(1), dp(14).toFloat())
-            setPadding(dp(4), dp(4), dp(4), dp(4))
+            background = UiTheme.roundedDrawable(this@MainActivity, UiTheme.panel, UiTheme.panelBorder, UiTheme.dp(this@MainActivity, 1), UiTheme.dp(this@MainActivity, 14).toFloat())
+            setPadding(UiTheme.dp(this@MainActivity, 4), UiTheme.dp(this@MainActivity, 4), UiTheme.dp(this@MainActivity, 4), UiTheme.dp(this@MainActivity, 4))
         }
 
         val navTitles = listOf("Visão geral", "Configurar", "Atualizar", "Ajustes")
@@ -274,11 +269,11 @@ class MainActivity : Activity() {
                 }
             }.also { btn ->
                 val p = LinearLayout.LayoutParams(
-                    if (isTablet) dp(140) else 0,
-                    dp(40),
+                    if (isTablet) UiTheme.dp(this, 140) else 0,
+                    UiTheme.dp(this, 40),
                     if (isTablet) 0f else 1f
                 ).apply {
-                    if (index > 0) leftMargin = dp(3)
+                    if (index > 0) leftMargin = UiTheme.dp(this@MainActivity, 3)
                 }
                 navWrapper.addView(btn, p)
             }
@@ -291,14 +286,14 @@ class MainActivity : Activity() {
             root.addView(header)
             val navContainer = LinearLayout(this).apply {
                 orientation = LinearLayout.HORIZONTAL
-                setPadding(dp(18), 0, dp(18), dp(12))
+                setPadding(UiTheme.dp(this@MainActivity, 18), 0, UiTheme.dp(this@MainActivity, 18), UiTheme.dp(this@MainActivity, 12))
             }
             navContainer.addView(navWrapper, LinearLayout.LayoutParams(-1, ViewGroup.LayoutParams.WRAP_CONTENT))
             root.addView(navContainer)
         }
 
-        val divider = View(this).apply { setBackgroundColor(panelBorder) }
-        root.addView(divider, LinearLayout.LayoutParams(-1, dp(1)))
+        val divider = View(this).apply { setBackgroundColor(UiTheme.panelBorder) }
+        root.addView(divider, LinearLayout.LayoutParams(-1, UiTheme.dp(this, 1)))
 
         scrollInner.addView(body, LinearLayout.LayoutParams(contentMaxWidth, ViewGroup.LayoutParams.WRAP_CONTENT))
         scroll.addView(scrollInner, LinearLayout.LayoutParams(-1, -1))
@@ -311,1644 +306,85 @@ class MainActivity : Activity() {
         if (!::body.isInitialized) return
         navButtons.forEachIndexed { i, b ->
             val isSelected = i == screen
-            b.setTextColor(if (isSelected) bg else textMuted)
+            b.setTextColor(if (isSelected) UiTheme.bg else UiTheme.textMuted)
             b.background = if (isSelected) {
-                roundedDrawable(mint, 0, 0, dp(10).toFloat())
+                UiTheme.roundedDrawable(this, UiTheme.mint, 0, 0, UiTheme.dp(this, 10).toFloat())
             } else {
-                roundedDrawable(Color.TRANSPARENT, 0, 0, dp(10).toFloat())
+                UiTheme.roundedDrawable(this, Color.TRANSPARENT, 0, 0, UiTheme.dp(this, 10).toFloat())
             }
         }
 
         body.removeAllViews()
-        dashboardBuilt = false
-        metricViews.clear()
 
         when (screen) {
-            0 -> renderDashboard()
-            1 -> renderSetup()
-            2 -> renderUpdates()
-            else -> renderSettings()
+            0 -> dashboardView.render(
+                body,
+                isTablet,
+                service?.snapshot(),
+                selectedScope,
+                onStartStop = {
+                    if (service?.snapshot()?.running == true) stopServer() else startServer()
+                }
+            )
+            1 -> setupView.render(
+                body,
+                isTablet,
+                selectedScope,
+                selectedType,
+                filters,
+                onScopeChanged = { selectedScope = it },
+                onTypeChanged = { selectedType = it }
+            )
+            2 -> updatesView.render(body)
+            else -> settingsView.render(
+                body,
+                isTablet,
+                selectedType,
+                selectedScope,
+                onTypeChanged = { selectedType = it }
+            )
+        }
+
+        if (screen == 0) {
+            dashboardView.update(service?.snapshot(), selectedScope, selectedType, isTablet)
         }
     }
 
-    private var releaseStatusText: TextView? = null
-    private var releaseProgressBar: ProgressBar? = null
+    fun startServer(showDashboard: Boolean = true) {
+        val port = prefs.getInt("port", ServerService.DEFAULT_TLS_PORT)
+        val storageLoc = prefs.getString("storage_location", "internal") ?: "internal"
+        val intent = Intent(this, ServerService::class.java).setAction(ServerService.ACTION_START)
+            .putExtra(ServerService.EXTRA_PORT, port)
+            .putExtra(ServerService.EXTRA_TYPE, prefs.getString("type", "web"))
+            .putExtra(ServerService.EXTRA_NETWORK_SCOPE, prefs.getString("network_scope", "local"))
+            .putExtra(ServerService.EXTRA_STORAGE_LOCATION, storageLoc)
+            .putStringArrayListExtra(ServerService.EXTRA_FILTERS, ArrayList(filters))
+            .putExtra(ServerService.EXTRA_WORKERS, prefs.getInt("workers", Runtime.getRuntime().availableProcessors()))
+            .putExtra(ServerService.EXTRA_PASSWORD, prefs.getString("password", ""))
 
-    private fun renderUpdates() {
-        sectionTitle("Atualizações", "Consulte GitHub Releases e instale com confirmação do Android")
-
-        val currentVersion = try { packageManager.getPackageInfo(packageName, 0).versionName ?: "1.0" } catch (_: Exception) { "1.0" }
-
-        val statusCard = card().apply {
-            addView(label("VERSÃO ATUAL INSTALADA", 11, skyBlue, bold = true))
-            addView(label(currentVersion, 22, textPrimary, bold = true).apply { setPadding(0, dp(4), 0, dp(8)) })
-            releaseStatusText = label("Toque no botão abaixo para verificar se há novas versões disponíveis no GitHub.", 13, textMuted).apply {
-                setLineSpacing(dp(3).toFloat(), 1f)
-            }
-            addView(releaseStatusText)
-
-            releaseProgressBar = ProgressBar(this@MainActivity, null, android.R.attr.progressBarStyleHorizontal).apply {
-                isIndeterminate = false
-                max = 100
-                progress = 0
-                visibility = View.GONE
-            }
-            addView(releaseProgressBar, marginTop(10))
+        if (Build.VERSION.SDK_INT >= 26) startForegroundService(intent) else startService(intent)
+        if (showDashboard) {
+            screen = 0
+            renderScreen()
         }
-        body.addView(statusCard)
-
-        releaseAction = Button(this).apply {
-            text = "VERIFICAR ATUALIZAÇÕES"; isAllCaps = false; setTextColor(bg)
-            typeface = Typeface.create("sans-serif-medium", Typeface.BOLD)
-            background = roundedDrawable(skyBlue, 0, 0, dp(10).toFloat())
-            setOnClickListener { checkForRelease() }
-        }
-        body.addView(releaseAction, LinearLayout.LayoutParams(-1, dp(52)).apply { topMargin = dp(12) })
-
-        val note = TextView(this).apply {
-            text = "As atualizações são validadas criptograficamente e obtidas de forma segura diretamente das releases do GitHub. O instalador nativo do Android sempre solicita sua confirmação prévia."
-            setTextColor(textSubtle); textSize = 12f; setPadding(0, dp(12), 0, 0)
-        }
-        body.addView(note)
     }
 
-    private fun checkForRelease() {
-        if (releaseBusy) return
-        releaseBusy = true
-        releaseAction?.isEnabled = false
-        releaseAction?.text = "Consultando GitHub…"
-        releaseStatusText?.text = "Verificando se há novas versões disponíveis..."
-        releaseProgressBar?.visibility = View.GONE
-
-        Thread {
-            try {
-                val currentVersion = try { packageManager.getPackageInfo(packageName, 0).versionName ?: "1.0" } catch (_: Exception) { "1.0" }
-                val check = releaseUpdater.checkUpdate(currentVersion, forceRefresh = true)
-                runOnUiThread {
-                    releaseBusy = false
-                    releaseAction?.isEnabled = true
-                    releaseAction?.text = "VERIFICAR ATUALIZAÇÕES"
-
-                    if (check.latestRelease == null) {
-                        releaseStatusText?.text = check.message
-                        showUpdaterMessage("Consulta de versão", check.message)
-                        return@runOnUiThread
-                    }
-
-                    val release = check.latestRelease
-                    val sizeFormatted = formatBytes(release.sizeBytes)
-                    val sizeText = if (release.sizeBytes > 0) " · Tamanho: $sizeFormatted" else ""
-
-                    if (check.updateAvailable) {
-                        releaseStatusText?.text = "Nova versão ${release.tag} disponível para download!"
-                        AlertDialog.Builder(this)
-                            .setTitle("Nova versão encontrada: ${release.name.ifBlank { release.tag }}")
-                            .setMessage("Versão instalada: $currentVersion\nNova versão: ${release.tag}$sizeText\n\nNotas da versão:\n${release.notes.take(1800).ifBlank { "Sem notas de versão." }}")
-                            .setNegativeButton("Agora não", null)
-                            .setPositiveButton("Baixar e instalar") { _, _ -> downloadRelease(release) }
-                            .show()
-                    } else {
-                        releaseStatusText?.text = "O aplicativo está atualizado na versão mais recente ($currentVersion)."
-                        showUpdaterMessage("Você já está atualizado", "Sua versão instalada ($currentVersion) é a mais recente disponível.")
-                    }
-                }
-            } catch (e: Exception) {
-                runOnUiThread {
-                    releaseBusy = false
-                    releaseAction?.isEnabled = true
-                    releaseAction?.text = "VERIFICAR ATUALIZAÇÕES"
-                    releaseStatusText?.text = "Falha ao consultar releases: ${e.message}"
-                    showUpdaterMessage("Falha ao consultar releases", e.message ?: "Verifique sua conexão de rede e tente novamente.")
-                }
-            }
-        }.start()
+    fun stopServer() {
+        startService(Intent(this, ServerService::class.java).setAction(ServerService.ACTION_STOP))
     }
 
-    private fun downloadRelease(release: GithubReleaseUpdater.Release) {
-        releaseBusy = true
-        releaseAction?.isEnabled = false
-        releaseAction?.text = "Baixando atualização… 0%"
-        releaseStatusText?.text = "Iniciando download do pacote ${release.tag}..."
-        releaseProgressBar?.apply {
-            visibility = View.VISIBLE
-            isIndeterminate = false
-            progress = 0
+    private fun applyKeepScreenOn() {
+        if (prefs.getBoolean("keep_screen", false)) {
+            window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        } else {
+            window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         }
-
-        Thread {
-            val apk = File(cacheDir, "AndServer-update.apk")
-            try {
-                releaseUpdater.download(release, apk) { downloaded, total, percent ->
-                    runOnUiThread {
-                        releaseProgressBar?.progress = percent
-                        releaseAction?.text = "Baixando atualização… $percent%"
-                        releaseStatusText?.text = "Baixando: ${formatBytes(downloaded)} de ${formatBytes(total)} ($percent%)"
-                    }
-                }
-
-                val info = packageManager.getPackageArchiveInfo(apk.absolutePath, 0)
-                    ?: throw IllegalStateException("O arquivo baixado não é um APK válido.")
-                if (info.packageName != packageName) throw IllegalStateException("O APK pertence a outro aplicativo.")
-
-                runOnUiThread {
-                    releaseBusy = false
-                    releaseAction?.isEnabled = true
-                    releaseAction?.text = "VERIFICAR ATUALIZAÇÕES"
-                    releaseStatusText?.text = "Download concluído! Abrindo instalador do Android..."
-                    releaseProgressBar?.visibility = View.GONE
-                    installDownloadedRelease(apk)
-                }
-            } catch (e: Exception) {
-                apk.delete()
-                runOnUiThread {
-                    releaseBusy = false
-                    releaseAction?.isEnabled = true
-                    releaseAction?.text = "VERIFICAR ATUALIZAÇÕES"
-                    releaseProgressBar?.visibility = View.GONE
-                    releaseStatusText?.text = "Falha ao baixar: ${e.message}"
-                    showUpdaterMessage("Falha ao baixar atualização", e.message ?: "Tente novamente.")
-                }
-            }
-        }.start()
     }
-
-    private fun installDownloadedRelease(apk: File) {
-        if (Build.VERSION.SDK_INT >= 26 && !packageManager.canRequestPackageInstalls()) {
-            Toast.makeText(this, "Permita instalações para AndServer e toque em Buscar atualização novamente.", Toast.LENGTH_LONG).show()
-            startActivity(Intent(android.provider.Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:$packageName")))
-            return
-        }
-        try {
-            val installer = packageManager.packageInstaller
-            val params = PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL)
-            params.setAppPackageName(packageName)
-            val sessionId = installer.createSession(params)
-            installer.openSession(sessionId).use { session ->
-                apk.inputStream().use { input -> session.openWrite("AndServer-update.apk", 0, apk.length()).use { output -> input.copyTo(output); session.fsync(output) } }
-                if (!releaseReceiverRegistered) {
-                    val filter = IntentFilter("com.andserver.INSTALL_STATUS")
-                    registerInstallReceiver(filter)
-                    releaseReceiverRegistered = true
-                }
-                val callback = Intent("com.andserver.INSTALL_STATUS").setPackage(packageName)
-                val pending = PendingIntent.getBroadcast(this, sessionId, callback, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE)
-                session.commit(pending.intentSender)
-            }
-        } catch (e: Exception) { showUpdaterMessage("Não foi possível iniciar a instalação", e.message ?: "Tente novamente.") }
-    }
-
-    private fun showUpdaterMessage(title: String, message: String) {
-        if (!isFinishing) AlertDialog.Builder(this).setTitle(title).setMessage(message).setPositiveButton("OK", null).show()
-    }
-
-    private class AlreadyCurrentException : Exception()
 
     @Suppress("DEPRECATION")
     private fun registerInstallReceiver(filter: IntentFilter) {
         if (Build.VERSION.SDK_INT >= 33) registerReceiver(installReceiver, filter, RECEIVER_NOT_EXPORTED)
         else registerReceiver(installReceiver, filter)
+        releaseReceiverRegistered = true
     }
-
-    private fun sectionTitle(title: String, subtitle: String) {
-        body.addView(label(title, 22, textPrimary, bold = true))
-        body.addView(label(subtitle, 13, textMuted).apply { setPadding(0, dp(4), 0, dp(14)) })
-    }
-
-    private fun actionButton(title: String, action: () -> Unit) {
-        val button = Button(this).apply {
-            text = title; isAllCaps = false; setTextColor(bg)
-            background = roundedDrawable(mint, 0, 0, dp(10).toFloat())
-            setOnClickListener { action() }
-        }
-        body.addView(button, LinearLayout.LayoutParams(-1, dp(52)).apply { topMargin = dp(12) })
-    }
-
-    private fun renderDashboard() {
-        body.removeAllViews()
-        metricViews.clear()
-
-        val snapshot = service?.snapshot()
-        val port = snapshot?.port
-        val active = snapshot?.running == true && port != null
-
-        if (isTablet) {
-            val columns = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-
-            val leftCol = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-            leftCol.addView(buildServerControlCard(active, port))
-
-            val infoCard = card().apply {
-                addView(label("PERFIL, REDE E SEGURANÇA", 11, textSubtle, bold = true))
-                val configName = serverTypeName(prefs.getString("type", "web") ?: "web")
-                val scopeName = if (selectedScope == "internet") "Toda a Internet (Público)" else "Rede Local (LAN)"
-                dashboardProfile = label(
-                    "Perfil: $configName\nModo de Rede: $scopeName\nPorta: ${prefs.getInt("port", ServerService.DEFAULT_TLS_PORT)}\nProtocolo: HTTPS / TLS 1.3\nEscudo Força Bruta: Ativo (Auto-Ban)\nSegurança: ${if (prefs.getString("password", "").isNullOrEmpty()) "Sem senha (Acesso livre)" else "HTTP Basic ativa"}",
-                    13, textMuted
-                ).apply {
-                    setPadding(0, dp(8), 0, 0)
-                    setLineSpacing(dp(4).toFloat(), 1f)
-                }
-                addView(dashboardProfile)
-            }
-            leftCol.addView(infoCard, marginTop(14))
-
-            val rightCol = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-            rightCol.addView(buildMetricsSection(active, snapshot))
-            rightCol.addView(buildLogsSection(snapshot), marginTop(14))
-
-            columns.addView(leftCol, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1.1f))
-            columns.addView(View(this), LinearLayout.LayoutParams(dp(18), 1))
-            columns.addView(rightCol, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1.4f))
-            body.addView(columns)
-        } else {
-            body.addView(buildServerControlCard(active, port))
-            body.addView(buildMetricsSection(active, snapshot), marginTop(16))
-            body.addView(buildLogsSection(snapshot), marginTop(16))
-
-            dashboardProfile = label("", 12, textSubtle).apply {
-                setPadding(dp(4), dp(14), dp(4), 0)
-                gravity = Gravity.CENTER_HORIZONTAL
-            }
-            body.addView(dashboardProfile)
-        }
-
-        dashboardBuilt = true
-        updateDashboard()
-    }
-
-    private fun buildServerControlCard(active: Boolean, port: Int?): View {
-        return card().apply {
-            val statusHeader = LinearLayout(this@MainActivity).apply {
-                orientation = LinearLayout.HORIZONTAL
-                gravity = Gravity.CENTER_VERTICAL
-            }
-
-            dashboardBadge = TextView(this@MainActivity).apply {
-                textSize = 11f
-                typeface = Typeface.create("sans-serif-medium", Typeface.BOLD)
-                setPadding(dp(10), dp(5), dp(10), dp(5))
-            }
-            statusHeader.addView(dashboardBadge)
-
-            dashboardScopeBadge = TextView(this@MainActivity).apply {
-                textSize = 11f
-                typeface = Typeface.create("sans-serif-medium", Typeface.BOLD)
-                setPadding(dp(10), dp(5), dp(10), dp(5))
-            }
-            statusHeader.addView(dashboardScopeBadge, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { leftMargin = dp(8) })
-
-            val spacer = View(this@MainActivity)
-            statusHeader.addView(spacer, LinearLayout.LayoutParams(0, 1, 1f))
-
-            val secureChip = label("🔒 TLS Autoassinado", 11, textSubtle)
-            statusHeader.addView(secureChip)
-            addView(statusHeader)
-
-            dashboardTitle = label("", if (isTablet) 20 else 18, textPrimary, bold = true).apply {
-                setPadding(0, dp(12), 0, dp(4))
-            }
-            addView(dashboardTitle)
-
-            // Caixa de Endereço Local (LAN)
-            val lanBox = LinearLayout(this@MainActivity).apply {
-                orientation = LinearLayout.VERTICAL
-                background = roundedDrawable(panelAlt, panelBorder, dp(1), dp(12).toFloat())
-                setPadding(dp(14), dp(12), dp(14), dp(12))
-                isClickable = true
-                isFocusable = true
-                setOnClickListener {
-                    val url = dashboardAddressLan?.tag as? String
-                    if (!url.isNullOrEmpty()) {
-                        copyToClipboard("Endereço Local", url)
-                    }
-                }
-            }
-            lanBox.addView(label("ENDEREÇO NA REDE LOCAL (TOQUE P/ COPIAR)", 10, textSubtle, bold = true))
-            dashboardAddressLan = TextView(this@MainActivity).apply {
-                textSize = if (isTablet) 15f else 14f
-                setTextColor(Color.WHITE)
-                typeface = Typeface.MONOSPACE
-                setPadding(0, dp(5), 0, 0)
-                setTextIsSelectable(true)
-            }
-            lanBox.addView(dashboardAddressLan)
-            addView(lanBox, marginTop(10))
-
-            // Caixa de Endereço Público / WAN (exibida quando no modo Internet)
-            val wanBox = LinearLayout(this@MainActivity).apply {
-                orientation = LinearLayout.VERTICAL
-                background = roundedDrawable(panelAlt, panelBorder, dp(1), dp(12).toFloat())
-                setPadding(dp(14), dp(12), dp(14), dp(12))
-                isClickable = true
-                isFocusable = true
-                setOnClickListener {
-                    val url = dashboardAddressWan?.tag as? String
-                    if (!url.isNullOrEmpty()) {
-                        copyToClipboard("Endereço Internet", url)
-                    }
-                }
-            }
-            wanBox.addView(label("ENDEREÇO NA INTERNET (GLOBAL / WAN)", 10, skyBlue, bold = true))
-            dashboardAddressWan = TextView(this@MainActivity).apply {
-                textSize = if (isTablet) 15f else 14f
-                setTextColor(Color.WHITE)
-                typeface = Typeface.MONOSPACE
-                setPadding(0, dp(5), 0, 0)
-                setTextIsSelectable(true)
-            }
-            wanBox.addView(dashboardAddressWan)
-            wanAddressBox = wanBox
-            addView(wanBox, marginTop(8))
-
-            // Linha com Botões: Iniciar/Parar e Mostrar QR Code
-            val actionRow = LinearLayout(this@MainActivity).apply {
-                orientation = LinearLayout.HORIZONTAL
-            }
-
-            dashboardAction = Button(this@MainActivity).apply {
-                textSize = 13f
-                typeface = Typeface.create("sans-serif-medium", Typeface.BOLD)
-                setOnClickListener {
-                    if (service?.snapshot()?.running == true) stopServer() else startServer()
-                }
-            }
-            actionRow.addView(dashboardAction, LinearLayout.LayoutParams(0, dp(48), 1.2f))
-
-            dashboardQrBtn = Button(this@MainActivity).apply {
-                text = "📱 QR CODE"
-                textSize = 13f
-                typeface = Typeface.create("sans-serif-medium", Typeface.BOLD)
-                setTextColor(textPrimary)
-                background = roundedDrawable(panelAlt, panelBorder, dp(1), dp(12).toFloat())
-                setOnClickListener {
-                    val currentUrl = dashboardAddressLan?.tag as? String ?: ""
-                    if (currentUrl.isNotEmpty()) {
-                        showQrDialog(currentUrl)
-                    } else {
-                        Toast.makeText(this@MainActivity, "Inicie o servidor para exibir o QR Code", Toast.LENGTH_SHORT).show()
-                    }
-                }
-            }
-            actionRow.addView(dashboardQrBtn, LinearLayout.LayoutParams(0, dp(48), 0.8f).apply { leftMargin = dp(8) })
-
-            addView(actionRow, marginTop(14))
-        }
-    }
-
-    private fun showQrDialog(url: String) {
-        val dialog = Dialog(this)
-        dialog.requestWindowFeature(Window.FEATURE_NO_TITLE)
-        val view = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            gravity = Gravity.CENTER_HORIZONTAL
-            background = roundedDrawable(panel, panelBorder, dp(1), dp(20).toFloat())
-            val pad = dp(24)
-            setPadding(pad, pad, pad, pad)
-        }
-
-        view.addView(label("Conectar via QR Code", 18, textPrimary, bold = true))
-        view.addView(label("Aponte a câmera de outro celular, tablet ou PC:", 13, textMuted).apply {
-            setPadding(0, dp(4), 0, dp(16))
-            gravity = Gravity.CENTER_HORIZONTAL
-        })
-
-        val matrix = QrGenerator.encode(url)
-        val bitmap = QrGenerator.toBitmap(matrix, dp(240))
-        val qrImage = ImageView(this).apply {
-            setImageBitmap(bitmap)
-            background = roundedDrawable(Color.WHITE, 0, 0, dp(12).toFloat())
-            val p = dp(10)
-            setPadding(p, p, p, p)
-        }
-        view.addView(qrImage, LinearLayout.LayoutParams(dp(250), dp(250)))
-
-        val urlText = TextView(this).apply {
-            text = url
-            textSize = 13f
-            typeface = Typeface.MONOSPACE
-            setTextColor(mint)
-            setPadding(0, dp(14), 0, dp(14))
-            gravity = Gravity.CENTER_HORIZONTAL
-        }
-        view.addView(urlText)
-
-        val btnRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-        val copyBtn = Button(this).apply {
-            text = "COPIAR LINK"
-            textSize = 12f
-            typeface = Typeface.create("sans-serif-medium", Typeface.BOLD)
-            setTextColor(bg)
-            background = roundedDrawable(mint, 0, 0, dp(10).toFloat())
-            setOnClickListener {
-                copyToClipboard("Link do Servidor", url)
-            }
-        }
-        btnRow.addView(copyBtn, LinearLayout.LayoutParams(0, dp(42), 1f))
-
-        val closeBtn = Button(this).apply {
-            text = "FECHAR"
-            textSize = 12f
-            typeface = Typeface.create("sans-serif-medium", Typeface.BOLD)
-            setTextColor(textPrimary)
-            background = roundedDrawable(panelAlt, panelBorder, dp(1), dp(10).toFloat())
-            setOnClickListener { dialog.dismiss() }
-        }
-        btnRow.addView(closeBtn, LinearLayout.LayoutParams(0, dp(42), 1f).apply { leftMargin = dp(8) })
-        view.addView(btnRow, LinearLayout.LayoutParams(-1, ViewGroup.LayoutParams.WRAP_CONTENT))
-
-        dialog.setContentView(view)
-        dialog.window?.setBackgroundDrawableResource(android.R.color.transparent)
-        dialog.show()
-    }
-
-    private fun copyToClipboard(label: String, text: String) {
-        val clip = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-        clip.setPrimaryClip(ClipData.newPlainText(label, text))
-        Toast.makeText(this, "$label copiado para a área de transferência!", Toast.LENGTH_SHORT).show()
-    }
-
-    private fun buildMetricsSection(active: Boolean, snapshot: ServerSnapshot?): View {
-        val container = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        container.addView(label("ATIVIDADE DO SERVIDOR", 11, mint, bold = true).apply { setPadding(dp(2), 0, 0, dp(8)) })
-
-        val statsCard = card()
-        val uptime = if (active) duration(System.currentTimeMillis() - (snapshot?.startedAt ?: 0)) else "—"
-
-        val row1 = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-        row1.addView(metric("REQUISIÇÕES", snapshot?.requests?.toString() ?: "0"), LinearLayout.LayoutParams(0, -2, 1f))
-        row1.addView(metric("CONEXÕES ATIVAS", snapshot?.clients?.toString() ?: "0"), LinearLayout.LayoutParams(0, -2, 1f))
-        statsCard.addView(row1)
-
-        val row2 = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; setPadding(0, dp(14), 0, 0) }
-        row2.addView(metric("ARQUIVOS HOSPEDADOS", snapshot?.files?.toString() ?: "0"), LinearLayout.LayoutParams(0, -2, 1f))
-        row2.addView(metric("TEMPO ATIVO", uptime), LinearLayout.LayoutParams(0, -2, 1f))
-        statsCard.addView(row2)
-
-        val row3 = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; setPadding(0, dp(14), 0, 0) }
-        row3.addView(metric("DADOS RECEBIDOS", formatBytes(snapshot?.bytesReceived ?: 0)), LinearLayout.LayoutParams(0, -2, 1f))
-        row3.addView(metric("DADOS ENVIADOS", formatBytes(snapshot?.bytesSent ?: 0)), LinearLayout.LayoutParams(0, -2, 1f))
-        statsCard.addView(row3)
-
-        container.addView(statsCard)
-        return container
-    }
-
-    private fun buildLogsSection(snapshot: ServerSnapshot?): View {
-        val container = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        container.addView(label("REGISTRO DE EVENTOS RECENTES", 11, mint, bold = true).apply { setPadding(dp(2), 0, 0, dp(8)) })
-
-        val logCard = card().apply {
-            val logWrapper = LinearLayout(this@MainActivity).apply {
-                orientation = LinearLayout.VERTICAL
-                background = roundedDrawable(panelAlt, panelBorder, dp(1), dp(10).toFloat())
-                setPadding(dp(12), dp(10), dp(12), dp(10))
-            }
-            dashboardLog = TextView(this@MainActivity).apply {
-                textSize = 12f
-                typeface = Typeface.MONOSPACE
-                setTextColor(textMuted)
-                setLineSpacing(dp(3).toFloat(), 1f)
-            }
-            logWrapper.addView(dashboardLog)
-            addView(logWrapper)
-        }
-        container.addView(logCard)
-        return container
-    }
-
-    private fun updateDashboard() {
-        val snapshot = service?.snapshot()
-        val port = snapshot?.port
-        val active = snapshot?.running == true && port != null
-        val isInternet = selectedScope == "internet"
-
-        dashboardBadge?.apply {
-            text = if (active) "●  ONLINE" else "○  PARADO"
-            setTextColor(if (active) mint else amber)
-            background = roundedDrawable(if (active) mintDark else amberDark, 0, 0, dp(12).toFloat())
-        }
-
-        dashboardScopeBadge?.apply {
-            text = if (isInternet) "🌍 TODA A INTERNET" else "🏠 REDE LOCAL"
-            setTextColor(if (isInternet) skyBlue else textMuted)
-            background = roundedDrawable(if (isInternet) skyBlueDark else panelAlt, 0, 0, dp(12).toFloat())
-        }
-
-        dashboardTitle?.text = if (active) {
-            if (isInternet) "Servidor ativo para toda a Internet" else "Servidor ativo na Rede Local"
-        } else {
-            "Servidor parado"
-        }
-
-        val lan = lanAddress()
-        val lanUrl = if (active) "https://$lan:$port" else ""
-        dashboardAddressLan?.apply {
-            text = if (active) "$lanUrl\nToque para copiar o endereço local" else "Inicie o servidor para liberar o endereço local."
-            tag = lanUrl
-        }
-
-        wanAddressBox?.visibility = if (isInternet) View.VISIBLE else View.GONE
-        if (isInternet) {
-            val publicIp = snapshot?.publicIp
-            val wanUrl = if (active && !publicIp.isNullOrEmpty()) "https://$publicIp:$port" else ""
-            dashboardAddressWan?.apply {
-                text = if (active) {
-                    if (!publicIp.isNullOrEmpty()) "$wanUrl\nToque para copiar o endereço público" else "Consultando IP público da conexão..."
-                } else {
-                    "Inicie o servidor para expor à internet."
-                }
-                tag = wanUrl
-            }
-        }
-
-        dashboardAction?.apply {
-            text = if (active) "PARAR SERVIDOR" else "INICIAR SERVIDOR"
-            setTextColor(if (active) Color.WHITE else bg)
-            background = roundedDrawable(
-                if (active) Color.rgb(185, 28, 28) else mint,
-                0, 0, dp(12).toFloat()
-            )
-        }
-
-        metricViews["REQUISIÇÕES"]?.text = snapshot?.requests?.toString() ?: "0"
-        metricViews["CONEXÕES ATIVAS"]?.text = snapshot?.clients?.toString() ?: "0"
-        metricViews["ARQUIVOS HOSPEDADOS"]?.text = snapshot?.files?.toString() ?: "0"
-        metricViews["TEMPO ATIVO"]?.text = if (active) duration(System.currentTimeMillis() - (snapshot?.startedAt ?: 0)) else "—"
-        metricViews["DADOS RECEBIDOS"]?.text = formatBytes(snapshot?.bytesReceived ?: 0)
-        metricViews["DADOS ENVIADOS"]?.text = formatBytes(snapshot?.bytesSent ?: 0)
-
-        val events = snapshot?.recentEvents.orEmpty()
-        dashboardLog?.text = if (events.isEmpty()) {
-            "Nenhuma requisição recebida ainda. O registro de conexões aparecerá aqui."
-        } else {
-            events.take(if (isTablet) 10 else 6).joinToString("\n\n")
-        }
-
-        val configName = serverTypeName(prefs.getString("type", "web") ?: "web")
-        dashboardProfile?.text = "Perfil: $configName · Modo: ${if (isInternet) "Internet" else "Local"} · Porta ${prefs.getInt("port", ServerService.DEFAULT_TLS_PORT)} · ${if (prefs.getString("password", "").isNullOrEmpty()) "Sem senha" else "Com senha"} · HTTPS"
-    }
-
-    private fun renderSetup() {
-        body.addView(label("CONFIGURAÇÃO DO SERVIDOR", 11, mint, bold = true).apply { setPadding(dp(2), 0, 0, dp(4)) })
-        body.addView(label("Escolha o alcance de rede, perfil do servidor e parâmetros de segurança.", 14, textMuted).apply {
-            setPadding(dp(2), 0, 0, dp(16))
-        })
-
-        // 1. ESCOPO DE REDE: LOCAL VS. TODA A INTERNET
-        body.addView(label("ALCANCE DE REDE (LOCAL VS. INTERNET)", 11, textSubtle, bold = true).apply { setPadding(0, 0, 0, dp(8)) })
-        val scopes = listOf(
-            Triple("local", "🏠 Apenas Rede Local (LAN)", "Conexões aceitas apenas de dispositivos na mesma Wi-Fi. Conexões externas são bloqueadas pelo firewall."),
-            Triple("internet", "🌍 Toda a Internet (Público / WAN)", "Acessível de qualquer lugar do mundo. Mostra seu IP público e ativa o escudo anti-força bruta.")
-        )
-        scopeRadios = scopes.map { (id, title, desc) ->
-            buildScopeCard(id, title, desc).also { body.addView(it, marginTop(6)) }
-        }
-
-        val types = listOf(
-            Triple("site", "🌐 Site Web Hospedado", "Hospeda páginas HTML/CSS/JS completas da pasta www com suporte a SPA e rotas"),
-            Triple("web", "Central Web & Arquivos", "Dashboard web com gerenciador, player de mídia e uploads"),
-            Triple("files", "Servidor de Arquivos", "Compartilhamento, listagem e transferência de arquivos"),
-            Triple("api", "Servidor de API JSON", "Rotas REST, métricas e administração remota")
-        )
-
-        if (isTablet) {
-            val columns = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-            val leftCol = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-            val rightCol = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-
-            leftCol.addView(label("PERFIL DE OPERAÇÃO", 11, textSubtle, bold = true).apply { setPadding(0, dp(16), 0, dp(8)) })
-            typeRadios = types.map { (id, title, desc) ->
-                buildProfileCard(id, title, desc).also { leftCol.addView(it, marginTop(8)) }
-            }
-
-            rightCol.addView(label("FORMATOS DE ARQUIVO PERMITIDOS", 11, textSubtle, bold = true).apply { setPadding(0, dp(16), 0, dp(8)) })
-            buildFileFilters(rightCol)
-
-            columns.addView(leftCol, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1.1f))
-            columns.addView(View(this), LinearLayout.LayoutParams(dp(20), 1))
-            columns.addView(rightCol, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
-            body.addView(columns)
-        } else {
-            body.addView(label("PERFIL DE OPERAÇÃO", 11, textSubtle, bold = true).apply { setPadding(0, dp(16), 0, dp(6)) })
-            typeRadios = types.map { (id, title, desc) ->
-                buildProfileCard(id, title, desc).also { body.addView(it, marginTop(8)) }
-            }
-
-            body.addView(label("FORMATOS DE ARQUIVO PERMITIDOS", 11, mint, bold = true).apply { setPadding(0, dp(22), 0, dp(6)) })
-            buildFileFilters(body)
-        }
-
-        // Seção de Porta e Senha
-        val networkCard = card().apply {
-            addView(label("PARÂMETROS DE REDE E SENHA", 11, textSubtle, bold = true))
-
-            addView(label("Porta HTTPS (1024 a 65535)", 13, textPrimary, bold = true).apply { setPadding(0, dp(12), 0, dp(6)) })
-            val portInput = EditText(this@MainActivity).apply {
-                setText(prefs.getInt("port", ServerService.DEFAULT_TLS_PORT).toString())
-                inputType = InputType.TYPE_CLASS_NUMBER
-                setSingleLine(true)
-                setTextColor(textPrimary)
-                textSize = 15f
-                setPadding(dp(14), dp(12), dp(14), dp(12))
-                background = roundedDrawable(panelAlt, panelBorder, dp(1), dp(10).toFloat())
-            }
-            addView(portInput, LinearLayout.LayoutParams(-1, dp(48)))
-
-            addView(label("Senha de Acesso (HTTP Basic - Recomendada para Internet)", 13, textPrimary, bold = true).apply { setPadding(0, dp(14), 0, dp(4)) })
-            addView(label("Deixe em branco para permitir acesso livre sem autenticação aos clientes da rede.", 12, textSubtle).apply { setPadding(0, 0, 0, dp(6)) })
-            val passwordInput = EditText(this@MainActivity).apply {
-                hint = "Mínimo 8 caracteres (ou em branco)"
-                setText(prefs.getString("password", ""))
-                inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
-                setSingleLine(true)
-                setTextColor(textPrimary)
-                setHintTextColor(textSubtle)
-                textSize = 15f
-                setPadding(dp(14), dp(12), dp(14), dp(12))
-                background = roundedDrawable(panelAlt, panelBorder, dp(1), dp(10).toFloat())
-            }
-            addView(passwordInput, LinearLayout.LayoutParams(-1, dp(48)))
-
-            val saveBtn = Button(this@MainActivity).apply {
-                text = "SALVAR E APLICAR CONFIGURAÇÃO"
-                textSize = 13f
-                typeface = Typeface.create("sans-serif-medium", Typeface.BOLD)
-                setTextColor(bg)
-                background = roundedDrawable(mint, 0, 0, dp(10).toFloat())
-                setOnClickListener {
-                    val value = portInput.text.toString().toIntOrNull()
-                    if (value == null || value !in 1024..65535) {
-                        portInput.error = "Use uma porta válida entre 1024 e 65535"
-                        return@setOnClickListener
-                    }
-                    if (passwordInput.text.isNotEmpty() && passwordInput.text.length < 8) {
-                        passwordInput.error = "A senha deve ter pelo menos 8 caracteres ou ficar em branco"
-                        return@setOnClickListener
-                    }
-                    prefs.edit()
-                        .putString("type", selectedType)
-                        .putString("network_scope", selectedScope)
-                        .putStringSet("filters", this@MainActivity.filters.toSet())
-                        .putInt("port", value)
-                        .putString("password", passwordInput.text.toString())
-                        .apply()
-
-                    Toast.makeText(this@MainActivity, "Configuração atualizada com sucesso!", Toast.LENGTH_SHORT).show()
-                    if (service?.snapshot()?.running == true) startServer()
-                    screen = 0
-                    renderScreen()
-                }
-            }
-            addView(saveBtn, marginTop(18))
-        }
-
-        body.addView(networkCard, marginTop(16))
-    }
-
-    private fun buildScopeCard(id: String, title: String, desc: String): RadioButton {
-        val radio = RadioButton(this).apply {
-            text = "$title\n$desc"
-            textSize = 13f
-            setTextColor(textPrimary)
-            buttonTintList = ColorStateList.valueOf(if (id == "internet") skyBlue else mint)
-            isChecked = selectedScope == id
-            setPadding(dp(8), dp(8), dp(8), dp(8))
-            background = roundedDrawable(panel, if (selectedScope == id) (if (id == "internet") skyBlue else mint) else panelBorder, dp(1), dp(12).toFloat())
-        }
-        radio.setOnClickListener {
-            selectedScope = id
-            scopeRadios.forEach { item ->
-                val checked = item == radio
-                item.isChecked = checked
-                item.background = roundedDrawable(panel, if (checked) (if (id == "internet") skyBlue else mint) else panelBorder, dp(1), dp(12).toFloat())
-            }
-        }
-        return radio
-    }
-
-    private fun buildProfileCard(id: String, title: String, desc: String): RadioButton {
-        val radio = RadioButton(this).apply {
-            text = "$title\n$desc"
-            textSize = 13f
-            setTextColor(textPrimary)
-            buttonTintList = ColorStateList.valueOf(mint)
-            isChecked = selectedType == id
-            setPadding(dp(8), dp(8), dp(8), dp(8))
-            background = roundedDrawable(panel, if (selectedType == id) mint else panelBorder, dp(1), dp(12).toFloat())
-        }
-        radio.setOnClickListener {
-            selectedType = id
-            typeRadios.forEach { item ->
-                val checked = item == radio
-                item.isChecked = checked
-                item.background = roundedDrawable(panel, if (checked) mint else panelBorder, dp(1), dp(12).toFloat())
-            }
-        }
-        return radio
-    }
-
-    private fun buildFileFilters(container: ViewGroup) {
-        val choices = listOf(
-            "all" to "Todos os tipos de arquivo",
-            "images" to "Imagens (JPG, PNG, GIF, WebP, SVG)",
-            "documents" to "Documentos (PDF, DOCX, TXT, HTML)",
-            "audio" to "Músicas e Áudio (MP3, WAV, AAC, FLAC)",
-            "video" to "Vídeos (MP4, MKV, WebM, AVI)",
-            "archives" to "Arquivos compactados (ZIP, RAR, 7Z, TAR)"
-        )
-        fileChecks.clear()
-        choices.forEach { (id, title) ->
-            val filterId = id
-            val filterCard = LinearLayout(this).apply {
-                orientation = LinearLayout.HORIZONTAL
-                gravity = Gravity.CENTER_VERTICAL
-                background = roundedDrawable(panel, panelBorder, dp(1), dp(10).toFloat())
-                setPadding(dp(10), dp(6), dp(10), dp(6))
-
-                val check = CheckBox(this@MainActivity).apply {
-                    text = title
-                    textSize = 13f
-                    setTextColor(textPrimary)
-                    buttonTintList = ColorStateList.valueOf(mint)
-                    isChecked = filterId in this@MainActivity.filters
-                    setOnCheckedChangeListener { _, checked -> onFilterChanged(filterId, checked) }
-                }
-                fileChecks[filterId] = check
-                addView(check)
-            }
-            container.addView(filterCard, marginTop(6))
-        }
-    }
-
-    private fun renderSettings() {
-        body.addView(label("AJUSTES E RECURSOS DO SISTEMA", 11, mint, bold = true).apply { setPadding(dp(2), 0, 0, dp(4)) })
-        body.addView(label("Otimize o desempenho, conexões e aproveite as 5 novas funcionalidades integradas.", 14, textMuted).apply {
-            setPadding(dp(2), 0, 0, dp(16))
-        })
-
-        // Cartão das 5 Novas Features
-        val featuresCard = card().apply {
-            addView(label("✨ 5 NOVAS FEATURES INTEGRADAS", 11, skyBlue, bold = true))
-            val items = listOf(
-                "📱 QR Code de Conexão Rápida" to "Geração dinâmica de QR Code no app e no painel web para escanear e conectar sem digitar IP.",
-                "🛡️ Escudo Anti-Força Bruta" to "Bloqueio automático temporário de 5 minutos para IPs que falharem 5 tentativas de senha sucessivas.",
-                "📦 Download em Lote ZIP" to "Compactação e download de pastas completas e múltiplos arquivos via streaming ZIP em tempo real.",
-                "🔗 Links Temporários com Expiração" to "Gere links de download avulsos válidos por 1h até 7 dias sem precisar revelar a senha mestra.",
-                "🎬 Streaming & Player In-Browser" to "Visualizador lightbox de fotos e player integrado de áudio e vídeo direto no navegador."
-            )
-            items.forEach { (title, desc) ->
-                val row = LinearLayout(this@MainActivity).apply {
-                    orientation = LinearLayout.VERTICAL
-                    setPadding(0, dp(10), 0, 0)
-                    addView(label(title, 13, textPrimary, bold = true))
-                    addView(label(desc, 12, textMuted).apply { setPadding(0, dp(2), 0, 0) })
-                }
-                addView(row)
-            }
-        }
-        body.addView(featuresCard)
-
-        val content = if (isTablet) {
-            val cols = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-            val leftCol = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-            val rightCol = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-
-            leftCol.addView(buildWorkerCard())
-            leftCol.addView(buildScreenCard(), marginTop(12))
-
-            rightCol.addView(buildSiteManagerCard())
-            rightCol.addView(buildStorageCard(), marginTop(12))
-
-            cols.addView(leftCol, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
-            cols.addView(View(this), LinearLayout.LayoutParams(dp(18), 1))
-            cols.addView(rightCol, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
-            cols
-        } else {
-            val stack = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-            stack.addView(buildWorkerCard())
-            stack.addView(buildSiteManagerCard(), marginTop(12))
-            stack.addView(buildScreenCard(), marginTop(12))
-            stack.addView(buildStorageCard(), marginTop(12))
-            stack
-        }
-        body.addView(content, marginTop(14))
-
-        val footer = label(
-            "AndServer · Perfil: ${serverTypeName(selectedType)} · Modo: ${if (selectedScope == "internet") "Internet (WAN)" else "Rede Local (LAN)"} · Porta ${prefs.getInt("port", ServerService.DEFAULT_TLS_PORT)}",
-            12, textSubtle
-        ).apply {
-            setPadding(dp(4), dp(20), dp(4), 0)
-            gravity = Gravity.CENTER_HORIZONTAL
-        }
-        body.addView(footer)
-    }
-
-    private fun buildWorkerCard(): View = card().apply {
-        addView(label("CONEXÕES SIMULTÂNEAS (WORKERS)", 13, textPrimary, bold = true))
-        addView(label("Define quantos clientes podem transferir dados ao mesmo tempo. Valores maiores usam mais memória e CPU.", 12, textMuted).apply {
-            setPadding(0, dp(4), 0, dp(10))
-        })
-        val spinner = Spinner(this@MainActivity).apply {
-            background = roundedDrawable(panelAlt, panelBorder, dp(1), dp(8).toFloat())
-            setPadding(dp(10), dp(8), dp(10), dp(8))
-        }
-        val options = listOf(2, 4, 8, 12, 16)
-        spinner.adapter = ArrayAdapter(this@MainActivity, android.R.layout.simple_spinner_dropdown_item, options.map { "$it conexões simultâneas" })
-        spinner.setSelection(options.indexOf(prefs.getInt("workers", 8)).coerceAtLeast(0))
-        spinner.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
-            override fun onNothingSelected(parent: AdapterView<*>?) = Unit
-            override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
-                val changed = prefs.getInt("workers", 8) != options[position]
-                prefs.edit().putInt("workers", options[position]).apply()
-                if (changed && service?.snapshot()?.running == true) startServer(showDashboard = false)
-            }
-        }
-        addView(spinner)
-    }
-
-    private fun buildScreenCard(): View = card().apply {
-        addView(label("MANTER TELA LIGADA", 13, textPrimary, bold = true))
-        addView(label("Impede que o Android suspenda a rede Wi-Fi durante transferências longas ou apresentações.", 12, textMuted).apply {
-            setPadding(0, dp(4), 0, dp(8))
-        })
-        val switch = Switch(this@MainActivity).apply {
-            text = "Evitar modo de repouso"
-            setTextColor(textPrimary)
-            isChecked = prefs.getBoolean("keep_screen", false)
-            setOnCheckedChangeListener { _, checked ->
-                prefs.edit().putBoolean("keep_screen", checked).apply()
-                applyKeepScreenOn()
-            }
-        }
-        addView(switch)
-    }
-
-    private fun buildSiteManagerCard(): View = card().apply {
-        addView(label("🌐 SITE WEB HOSPEDADO (PASTA WWW)", 13, mint, bold = true))
-        val wwwDir = File(File(filesDir, "hosted"), "www")
-        val fileCount = if (wwwDir.exists()) wwwDir.walkTopDown().count { it.isFile } else 0
-        addView(label("Hospede um site estático ou Single Page Application completo no dispositivo. Os arquivos ficam em /hosted/www e são servidos diretamente na raiz / no perfil 'Site Web Hospedado'.\nAtualmente $fileCount arquivo(s) presentes no site.", 12, textMuted).apply {
-            setPadding(0, dp(4), 0, dp(12))
-            setLineSpacing(dp(3).toFloat(), 1f)
-        })
-
-        val btnRow = LinearLayout(this@MainActivity).apply { orientation = LinearLayout.HORIZONTAL }
-
-        val resetSiteBtn = Button(this@MainActivity).apply {
-            text = "RESTAURAR SITE PADRÃO"
-            textSize = 12f
-            typeface = Typeface.create("sans-serif-medium", Typeface.BOLD)
-            setTextColor(bg)
-            background = roundedDrawable(mint, 0, 0, dp(8).toFloat())
-            setOnClickListener {
-                createDefaultSiteFiles(overwrite = true)
-                Toast.makeText(this@MainActivity, "Site padrão restaurado em /hosted/www com sucesso!", Toast.LENGTH_SHORT).show()
-                renderScreen()
-            }
-        }
-        btnRow.addView(resetSiteBtn, LinearLayout.LayoutParams(0, dp(40), 1f))
-
-        val useProfileBtn = Button(this@MainActivity).apply {
-            text = "ATIVAR PERFIL SITE"
-            textSize = 12f
-            typeface = Typeface.create("sans-serif-medium", Typeface.BOLD)
-            setTextColor(textPrimary)
-            background = roundedDrawable(panelAlt, panelBorder, dp(1), dp(8).toFloat())
-            setOnClickListener {
-                prefs.edit().putString("type", "site").apply()
-                selectedType = "site"
-                Toast.makeText(this@MainActivity, "Perfil 'Site Web Hospedado' ativado!", Toast.LENGTH_SHORT).show()
-                if (service?.snapshot()?.running == true) startServer() else renderScreen()
-            }
-        }
-        btnRow.addView(useProfileBtn, LinearLayout.LayoutParams(0, dp(40), 1f).apply { leftMargin = dp(8) })
-
-        addView(btnRow)
-    }
-
-    private fun ensureSiteTemplate() {
-        val wwwDir = File(File(filesDir, "hosted"), "www")
-        if (!wwwDir.exists() || (wwwDir.listFiles()?.isEmpty() == true)) {
-            createDefaultSiteFiles(overwrite = false)
-        }
-    }
-
-    private fun createDefaultSiteFiles(overwrite: Boolean) {
-        val wwwDir = File(File(filesDir, "hosted"), "www").apply { mkdirs() }
-        val indexFile = File(wwwDir, "index.html")
-        val styleFile = File(wwwDir, "style.css")
-        val appJs = File(wwwDir, "app.js")
-
-        if (overwrite || !indexFile.exists()) {
-            indexFile.writeText(
-                """<!DOCTYPE html>
-<html lang="pt-BR">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="theme-color" content="#0b0f17">
-    <title>AndServer · Web Host</title>
-    <link rel="stylesheet" href="style.css">
-</head>
-<body>
-    <div class="ambient-glow"></div>
-
-    <div class="page-wrapper">
-        <header class="navbar">
-            <div class="brand">
-                <div class="brand-icon">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <rect x="2" y="2" width="20" height="8" rx="2" ry="2"></rect>
-                        <rect x="2" y="14" width="20" height="8" rx="2" ry="2"></rect>
-                        <line x1="6" y1="6" x2="6.01" y2="6"></line>
-                        <line x1="6" y1="18" x2="6.01" y2="18"></line>
-                    </svg>
-                </div>
-                <div class="brand-text">
-                    <span class="brand-name">AndServer</span>
-                    <span class="brand-pill">Web Engine</span>
-                </div>
-            </div>
-
-            <div class="nav-actions">
-                <div class="status-indicator" id="serverLiveStatus">
-                    <span class="pulse-dot"></span>
-                    <span class="status-label">Servidor Online</span>
-                </div>
-                <button id="themeToggle" class="btn-icon" title="Alternar Tema Claro/Escuro" aria-label="Alternar tema">
-                    <svg id="themeIconSun" class="icon-theme" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <circle cx="12" cy="12" r="5"></circle>
-                        <line x1="12" y1="1" x2="12" y2="3"></line>
-                        <line x1="12" y1="21" x2="12" y2="23"></line>
-                        <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
-                        <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
-                        <line x1="1" y1="12" x2="3" y2="12"></line>
-                        <line x1="21" y1="12" x2="23" y2="12"></line>
-                        <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
-                        <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
-                    </svg>
-                    <svg id="themeIconMoon" class="icon-theme hidden" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
-                    </svg>
-                </button>
-            </div>
-        </header>
-
-        <main class="content-container">
-            <section class="hero-section">
-                <div class="eyebrow-badge">
-                    <span class="badge-dot"></span>
-                    <span>Hospedagem Web Nativa no Android</span>
-                </div>
-                <h1 class="hero-title">Site Moderno &amp; Clean em Alta Performance</h1>
-                <p class="hero-subtitle">
-                    Esta página está sendo servida diretamente da memória deste dispositivo móvel, protegida por criptografia TLS 1.3 de ponta a ponta e zero dependências externas.
-                </p>
-
-                <div class="host-pill">
-                    <div class="host-item">
-                        <span class="host-label">HOST / ENDEREÇO</span>
-                        <span class="host-value" id="currentHost">Detectando...</span>
-                    </div>
-                    <div class="host-divider"></div>
-                    <div class="host-item">
-                        <span class="host-label">PROTOCOLO</span>
-                        <span class="host-value accent-cyan" id="currentProto">HTTPS / TLS 1.3</span>
-                    </div>
-                    <div class="host-divider"></div>
-                    <div class="host-item">
-                        <span class="host-label">LATÊNCIA MÉDIA</span>
-                        <span class="host-value accent-mint" id="currentPing">-- ms</span>
-                    </div>
-                </div>
-
-                <div class="cta-actions">
-                    <a href="#playground" class="btn btn-primary">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="btn-svg">
-                            <polygon points="5 3 19 12 5 21 5 3"></polygon>
-                        </svg>
-                        Testar API Nativa
-                    </a>
-                    <a href="/public/" class="btn btn-secondary" target="_blank" rel="noopener">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="btn-svg">
-                            <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
-                        </svg>
-                        Explorador de Arquivos
-                    </a>
-                </div>
-            </section>
-
-            <section class="metrics-grid">
-                <div class="metric-card">
-                    <div class="metric-header">
-                        <span class="metric-title">ESTADO DO NÓ</span>
-                        <div class="metric-icon-box mint">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
-                                <polyline points="22 4 12 14.01 9 11.01"></polyline>
-                            </svg>
-                        </div>
-                    </div>
-                    <div class="metric-val" id="metricStatus">Ativo &amp; Estável</div>
-                    <div class="metric-meta">Disponível em rede local &amp; WAN</div>
-                </div>
-
-                <div class="metric-card">
-                    <div class="metric-header">
-                        <span class="metric-title">SEGURANÇA</span>
-                        <div class="metric-icon-box cyan">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
-                                <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
-                            </svg>
-                        </div>
-                    </div>
-                    <div class="metric-val">TLS 1.3 / X.509</div>
-                    <div class="metric-meta">Android Keystore Isolado</div>
-                </div>
-
-                <div class="metric-card">
-                    <div class="metric-header">
-                        <span class="metric-title">ARQUITETURA</span>
-                        <div class="metric-icon-box purple">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <path d="M16.5 9.4 7.55 4.24a1.78 1.78 0 0 0-2.5 1.55v12.42a1.78 1.78 0 0 0 2.5 1.55L16.5 14.6a1.78 1.78 0 0 0 0-3.2z"></path>
-                            </svg>
-                        </div>
-                    </div>
-                    <div class="metric-val">Kotlin Nativo</div>
-                    <div class="metric-meta">0 dependências externas</div>
-                </div>
-
-                <div class="metric-card">
-                    <div class="metric-header">
-                        <span class="metric-title">CACHE &amp; ASSETS</span>
-                        <div class="metric-icon-box amber">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
-                            </svg>
-                        </div>
-                    </div>
-                    <div class="metric-val">ETag + 32KB</div>
-                    <div class="metric-meta">Streaming de baixa latência</div>
-                </div>
-            </section>
-
-            <section class="features-section">
-                <div class="section-heading">
-                    <span class="section-tag">CARACTERÍSTICAS</span>
-                    <h2 class="section-title">Construído para Eficiência Absoluta</h2>
-                    <p class="section-desc">Um servidor completo projetado desde o primeiro byte para ser seguro, leve e econômico.</p>
-                </div>
-
-                <div class="features-grid">
-                    <div class="feature-card">
-                        <div class="feature-icon">⚡</div>
-                        <h3>Desempenho Instantâneo</h3>
-                        <p>Respostas em tempo recorde com conexões HTTP Keep-Alive persistentes e validação inteligente de cache ETag.</p>
-                    </div>
-
-                    <div class="feature-card">
-                        <div class="feature-icon">📱</div>
-                        <h3>Design 100% Responsivo</h3>
-                        <p>Layout limpo e fluido que se adapta automaticamente a smartphones, tablets dobráveis e monitores ultrawide.</p>
-                    </div>
-
-                    <div class="feature-card">
-                        <div class="feature-icon">🛡️</div>
-                        <h3>Defesa &amp; Firewall Integrado</h3>
-                        <p>Proteção automática contra ataques de força bruta, controle de concorrência e certificados assinados dinamicamente.</p>
-                    </div>
-
-                    <div class="feature-card">
-                        <div class="feature-icon">📂</div>
-                        <h3>Totalmente Customizável</h3>
-                        <p>Coloque seus arquivos HTML, CSS, JavaScript ou Single Page Application (SPA) na pasta <code>/hosted/www</code>.</p>
-                    </div>
-                </div>
-            </section>
-
-            <section id="playground" class="playground-section">
-                <div class="section-heading">
-                    <span class="section-tag">PLAYGROUND INTERATIVO</span>
-                    <h2 class="section-title">Console de Testes de API</h2>
-                    <p class="section-desc">Interaja em tempo real com os endpoints do servidor Android nativo:</p>
-                </div>
-
-                <div class="console-box">
-                    <div class="console-toolbar">
-                        <div class="console-actions">
-                            <button id="btnHealth" class="chip active">GET /health</button>
-                            <button id="btnStatus" class="chip">GET /api/status</button>
-                            <button id="btnFiles" class="chip">GET /api/files</button>
-                        </div>
-                        <div class="console-meta">
-                            <span id="responseStatus" class="response-status">200 OK</span>
-                            <span id="responseTimer" class="response-timer">0 ms</span>
-                            <button id="btnCopy" class="btn-copy" title="Copiar resposta">
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="copy-svg">
-                                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
-                                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
-                                </svg>
-                                <span id="copyText">Copiar</span>
-                            </button>
-                        </div>
-                    </div>
-                    <pre id="apiOutput" class="code-view"><code>Clique em uma das rotas acima para testar a comunicação em tempo real...</code></pre>
-                </div>
-            </section>
-
-            <section class="guide-section">
-                <div class="guide-card">
-                    <div class="guide-step-num">1</div>
-                    <div class="guide-content">
-                        <h4>Acesse o Painel Web ou App</h4>
-                        <p>No aplicativo Android ou pelo navegador em <code>/</code>, abra o gerenciador de arquivos.</p>
-                    </div>
-                </div>
-                <div class="guide-card">
-                    <div class="guide-step-num">2</div>
-                    <div class="guide-content">
-                        <h4>Edite a Pasta <code>/hosted/www</code></h4>
-                        <p>Substitua este <code>index.html</code>, adicione folhas de estilo, fontes e assets do seu projeto.</p>
-                    </div>
-                </div>
-                <div class="guide-card">
-                    <div class="guide-step-num">3</div>
-                    <div class="guide-content">
-                        <h4>Compartilhe com o Mundo</h4>
-                        <p>Utilize a rede Wi-Fi local ou o modo Internet (WAN) para acessar seu site de qualquer lugar.</p>
-                    </div>
-                </div>
-            </section>
-        </main>
-
-        <footer class="footer">
-            <div class="footer-inner">
-                <div class="footer-brand">
-                    <span class="footer-title">AndServer</span>
-                    <span class="footer-sub">Android Native Web Server</span>
-                </div>
-                <div class="footer-security">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="lock-svg">
-                        <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
-                        <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
-                    </svg>
-                    <span>Conexão Local Segura &amp; Criptografada</span>
-                </div>
-            </div>
-        </footer>
-    </div>
-
-    <script src="app.js"></script>
-</body>
-</html>
-""".trimIndent()
-            )
-        }
-
-        if (overwrite || !styleFile.exists()) {
-            styleFile.writeText(
-                """/* AndServer - Modern & Clean Layout */
-:root {
-    --bg: #090d16;
-    --surface: #0f172a;
-    --surface-card: #141f36;
-    --surface-card-hover: #1a2845;
-    --surface-glass: rgba(15, 23, 42, 0.75);
-    --border: rgba(255, 255, 255, 0.08);
-    --border-hover: rgba(56, 189, 248, 0.35);
-    --text-primary: #f8fafc;
-    --text-muted: #94a3b8;
-    --text-subtle: #64748b;
-    --primary: #10b981;
-    --primary-glow: rgba(16, 185, 129, 0.25);
-    --accent-cyan: #38bdf8;
-    --accent-purple: #a855f7;
-    --accent-amber: #f59e0b;
-    --card-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.5);
-    --radius-sm: 8px;
-    --radius-md: 14px;
-    --radius-lg: 20px;
-    --radius-pill: 9999px;
-    --transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
-}
-[data-theme="light"] {
-    --bg: #f8fafc;
-    --surface: #ffffff;
-    --surface-card: #f1f5f9;
-    --surface-card-hover: #e2e8f0;
-    --surface-glass: rgba(255, 255, 255, 0.85);
-    --border: rgba(0, 0, 0, 0.08);
-    --border-hover: rgba(2, 132, 199, 0.35);
-    --text-primary: #0f172a;
-    --text-muted: #475569;
-    --text-subtle: #94a3b8;
-    --primary: #059669;
-    --primary-glow: rgba(5, 150, 105, 0.15);
-    --accent-cyan: #0284c7;
-    --accent-purple: #7c3aed;
-    --accent-amber: #d97706;
-    --card-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.07);
-}
-* { box-sizing: border-box; margin: 0; padding: 0; }
-html { scroll-behavior: smooth; -webkit-font-smoothing: antialiased; }
-body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; background-color: var(--bg); color: var(--text-primary); line-height: 1.6; min-height: 100vh; position: relative; overflow-x: hidden; transition: background-color 0.3s ease, color 0.3s ease; }
-.ambient-glow { position: fixed; top: -20%; left: 50%; transform: translateX(-50%); width: 800px; height: 600px; background: radial-gradient(circle, rgba(16, 185, 129, 0.08) 0%, rgba(56, 189, 248, 0.05) 50%, transparent 80%); pointer-events: none; z-index: 0; }
-.page-wrapper { position: relative; z-index: 1; max-width: 1120px; margin: 0 auto; padding: 24px 20px 60px; display: flex; flex-direction: column; min-height: 100vh; }
-.navbar { display: flex; align-items: center; justify-content: space-between; padding: 14px 20px; background: var(--surface-glass); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); border: 1px solid var(--border); border-radius: var(--radius-lg); box-shadow: var(--card-shadow); margin-bottom: 40px; }
-.brand { display: flex; align-items: center; gap: 12px; }
-.brand-icon { width: 38px; height: 38px; border-radius: var(--radius-md); background: linear-gradient(135deg, rgba(16, 185, 129, 0.2), rgba(56, 189, 248, 0.2)); border: 1px solid var(--border); display: flex; align-items: center; justify-content: center; color: var(--primary); }
-.brand-icon svg { width: 20px; height: 20px; }
-.brand-text { display: flex; align-items: center; gap: 8px; }
-.brand-name { font-size: 18px; font-weight: 800; letter-spacing: -0.02em; color: var(--text-primary); }
-.brand-pill { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; padding: 2px 8px; border-radius: var(--radius-pill); background: rgba(56, 189, 248, 0.15); color: var(--accent-cyan); border: 1px solid rgba(56, 189, 248, 0.3); }
-.nav-actions { display: flex; align-items: center; gap: 12px; }
-.status-indicator { display: inline-flex; align-items: center; gap: 8px; padding: 6px 14px; border-radius: var(--radius-pill); background: rgba(16, 185, 129, 0.12); border: 1px solid rgba(16, 185, 129, 0.25); color: var(--primary); font-size: 12px; font-weight: 700; }
-.pulse-dot { width: 8px; height: 8px; border-radius: 50%; background-color: var(--primary); box-shadow: 0 0 0 0 var(--primary-glow); animation: pulseGlow 2s infinite; }
-@keyframes pulseGlow { 0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); } 70% { transform: scale(1); box-shadow: 0 0 0 8px rgba(16, 185, 129, 0); } 100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); } }
-.btn-icon { width: 38px; height: 38px; border-radius: var(--radius-md); background: var(--surface-card); border: 1px solid var(--border); color: var(--text-muted); display: flex; align-items: center; justify-content: center; cursor: pointer; transition: var(--transition); }
-.btn-icon:hover { color: var(--text-primary); border-color: var(--border-hover); transform: translateY(-1px); }
-.btn-icon svg { width: 18px; height: 18px; }
-.hidden { display: none !important; }
-.hero-section { text-align: center; padding: 20px 0 48px; display: flex; flex-direction: column; align-items: center; }
-.eyebrow-badge { display: inline-flex; align-items: center; gap: 8px; padding: 6px 16px; background: var(--surface-card); border: 1px solid var(--border); border-radius: var(--radius-pill); font-size: 12px; font-weight: 700; color: var(--primary); margin-bottom: 20px; letter-spacing: 0.04em; }
-.badge-dot { width: 6px; height: 6px; border-radius: 50%; background-color: var(--primary); }
-.hero-title { font-size: clamp(32px, 5vw, 52px); font-weight: 800; line-height: 1.15; letter-spacing: -0.03em; max-width: 820px; margin-bottom: 16px; color: var(--text-primary); }
-.hero-subtitle { font-size: 16px; color: var(--text-muted); max-width: 620px; line-height: 1.6; margin-bottom: 32px; }
-.host-pill { display: flex; align-items: center; gap: 20px; background: var(--surface-card); border: 1px solid var(--border); padding: 12px 24px; border-radius: var(--radius-pill); box-shadow: var(--card-shadow); margin-bottom: 32px; flex-wrap: wrap; justify-content: center; }
-.host-item { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; }
-.host-label { font-size: 10px; font-weight: 700; color: var(--text-subtle); letter-spacing: 0.06em; }
-.host-value { font-size: 13px; font-weight: 700; color: var(--text-primary); font-family: ui-monospace, SFMono-Regular, monospace; }
-.accent-cyan { color: var(--accent-cyan); }
-.accent-mint { color: var(--primary); }
-.host-divider { width: 1px; height: 24px; background: var(--border); }
-.cta-actions { display: flex; gap: 14px; flex-wrap: wrap; justify-content: center; }
-.btn { display: inline-flex; align-items: center; gap: 8px; padding: 12px 24px; border-radius: var(--radius-md); font-size: 14px; font-weight: 700; text-decoration: none; cursor: pointer; transition: var(--transition); border: none; }
-.btn-svg { width: 16px; height: 16px; }
-.btn-primary { background: var(--primary); color: #090d16; box-shadow: 0 4px 14px var(--primary-glow); }
-.btn-primary:hover { transform: translateY(-2px); box-shadow: 0 6px 20px var(--primary-glow); opacity: 0.95; }
-.btn-secondary { background: var(--surface-card); color: var(--text-primary); border: 1px solid var(--border); }
-.btn-secondary:hover { background: var(--surface-card-hover); border-color: var(--border-hover); transform: translateY(-2px); }
-.metrics-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; margin-bottom: 56px; }
-.metric-card { background: var(--surface-glass); backdrop-filter: blur(12px); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 20px; box-shadow: var(--card-shadow); transition: var(--transition); }
-.metric-card:hover { border-color: var(--border-hover); transform: translateY(-2px); }
-.metric-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
-.metric-title { font-size: 11px; font-weight: 800; letter-spacing: 0.08em; color: var(--text-subtle); }
-.metric-icon-box { width: 32px; height: 32px; border-radius: var(--radius-sm); display: flex; align-items: center; justify-content: center; }
-.metric-icon-box svg { width: 16px; height: 16px; }
-.metric-icon-box.mint { background: rgba(16, 185, 129, 0.15); color: var(--primary); }
-.metric-icon-box.cyan { background: rgba(56, 189, 248, 0.15); color: var(--accent-cyan); }
-.metric-icon-box.purple { background: rgba(168, 85, 247, 0.15); color: var(--accent-purple); }
-.metric-icon-box.amber { background: rgba(245, 158, 11, 0.15); color: var(--accent-amber); }
-.metric-val { font-size: 22px; font-weight: 800; color: var(--text-primary); margin-bottom: 4px; letter-spacing: -0.02em; }
-.metric-meta { font-size: 12px; color: var(--text-muted); }
-.features-section { margin-bottom: 60px; }
-.section-heading { text-align: center; max-width: 620px; margin: 0 auto 36px; }
-.section-tag { font-size: 11px; font-weight: 800; letter-spacing: 0.1em; color: var(--accent-cyan); text-transform: uppercase; margin-bottom: 8px; display: block; }
-.section-title { font-size: 28px; font-weight: 800; color: var(--text-primary); letter-spacing: -0.02em; margin-bottom: 10px; }
-.section-desc { font-size: 15px; color: var(--text-muted); }
-.features-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 20px; }
-.feature-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 24px; box-shadow: var(--card-shadow); transition: var(--transition); }
-.feature-card:hover { border-color: var(--border-hover); transform: translateY(-3px); }
-.feature-icon { font-size: 28px; margin-bottom: 16px; display: inline-block; }
-.feature-card h3 { font-size: 17px; font-weight: 700; color: var(--text-primary); margin-bottom: 8px; }
-.feature-card p { font-size: 13.5px; color: var(--text-muted); line-height: 1.55; }
-.playground-section { margin-bottom: 60px; }
-.console-box { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); overflow: hidden; box-shadow: var(--card-shadow); }
-.console-toolbar { display: flex; align-items: center; justify-content: space-between; padding: 12px 18px; background: var(--surface-card); border-bottom: 1px solid var(--border); flex-wrap: wrap; gap: 12px; }
-.console-actions { display: flex; gap: 8px; flex-wrap: wrap; }
-.chip { padding: 6px 14px; border-radius: var(--radius-pill); background: transparent; border: 1px solid var(--border); color: var(--text-muted); font-size: 12px; font-weight: 700; font-family: ui-monospace, SFMono-Regular, monospace; cursor: pointer; transition: var(--transition); }
-.chip:hover { color: var(--text-primary); border-color: var(--border-hover); }
-.chip.active { background: var(--primary); color: #090d16; border-color: var(--primary); }
-.console-meta { display: flex; align-items: center; gap: 12px; }
-.response-status { font-size: 11px; font-weight: 800; color: var(--primary); background: rgba(16, 185, 129, 0.12); padding: 3px 8px; border-radius: var(--radius-sm); }
-.response-timer { font-size: 11px; font-weight: 700; color: var(--text-subtle); font-family: ui-monospace, monospace; }
-.btn-copy { display: inline-flex; align-items: center; gap: 6px; background: transparent; border: 1px solid var(--border); color: var(--text-muted); padding: 5px 10px; border-radius: var(--radius-sm); font-size: 11px; font-weight: 600; cursor: pointer; transition: var(--transition); }
-.btn-copy:hover { color: var(--text-primary); border-color: var(--border-hover); }
-.copy-svg { width: 14px; height: 14px; }
-.code-view { padding: 20px; margin: 0; background: #04070e; color: #38bdf8; font-family: ui-monospace, SFMono-Regular, monospace; font-size: 12.5px; line-height: 1.6; overflow-x: auto; max-height: 280px; }
-[data-theme="light"] .code-view { background: #0f172a; color: #38bdf8; }
-.guide-section { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; margin-bottom: 60px; }
-.guide-card { display: flex; align-items: flex-start; gap: 16px; background: var(--surface-card); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 20px; }
-.guide-step-num { width: 32px; height: 32px; border-radius: 50%; background: var(--primary); color: #090d16; font-weight: 800; font-size: 14px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
-.guide-content h4 { font-size: 15px; font-weight: 700; color: var(--text-primary); margin-bottom: 4px; }
-.guide-content p { font-size: 13px; color: var(--text-muted); line-height: 1.5; }
-.guide-content code { background: rgba(56, 189, 248, 0.15); color: var(--accent-cyan); padding: 2px 6px; border-radius: 4px; font-size: 12px; }
-.footer { margin-top: auto; padding-top: 28px; border-top: 1px solid var(--border); }
-.footer-inner { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px; }
-.footer-brand { display: flex; align-items: center; gap: 8px; }
-.footer-title { font-size: 14px; font-weight: 800; color: var(--primary); }
-.footer-sub { font-size: 12px; color: var(--text-subtle); }
-.footer-security { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-muted); }
-.lock-svg { width: 14px; height: 14px; color: var(--primary); }
-@media (max-width: 768px) {
-    .page-wrapper { padding: 16px 14px 40px; }
-    .navbar { margin-bottom: 24px; padding: 12px 14px; }
-    .hero-title { font-size: 30px; }
-    .host-pill { flex-direction: column; align-items: center; gap: 10px; border-radius: var(--radius-md); padding: 14px; width: 100%; }
-    .host-divider { width: 80%; height: 1px; }
-    .host-item { align-items: center; }
-    .cta-actions { width: 100%; flex-direction: column; }
-    .btn { width: 100%; justify-content: center; }
-    .console-toolbar { flex-direction: column; align-items: flex-start; }
-    .console-meta { width: 100%; justify-content: space-between; }
-    .footer-inner { flex-direction: column; align-items: flex-start; }
-}
-""".trimIndent()
-            )
-        }
-
-        if (overwrite || !appJs.exists()) {
-            val d = "$"
-            appJs.writeText(
-                """document.addEventListener('DOMContentLoaded', () => {
-    const hostEl = document.getElementById('currentHost');
-    const protoEl = document.getElementById('currentProto');
-    const pingEl = document.getElementById('currentPing');
-
-    if (hostEl) hostEl.textContent = window.location.host || '127.0.0.1:8443';
-    if (protoEl) protoEl.textContent = (window.location.protocol.toUpperCase().replace(':', '') || 'HTTPS') + ' / TLS 1.3';
-
-    const themeToggle = document.getElementById('themeToggle');
-    const iconSun = document.getElementById('themeIconSun');
-    const iconMoon = document.getElementById('themeIconMoon');
-
-    function applyTheme(theme) {
-        if (theme === 'light') {
-            document.documentElement.setAttribute('data-theme', 'light');
-            iconSun.classList.add('hidden');
-            iconMoon.classList.remove('hidden');
-        } else {
-            document.documentElement.removeAttribute('data-theme');
-            iconSun.classList.remove('hidden');
-            iconMoon.classList.add('hidden');
-        }
-    }
-
-    const savedTheme = localStorage.getItem('andserver_theme') || 
-        (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
-    applyTheme(savedTheme);
-
-    if (themeToggle) {
-        themeToggle.addEventListener('click', () => {
-            const current = document.documentElement.getAttribute('data-theme') === 'light' ? 'light' : 'dark';
-            const next = current === 'light' ? 'dark' : 'light';
-            localStorage.setItem('andserver_theme', next);
-            applyTheme(next);
-        });
-    }
-
-    const apiOutput = document.getElementById('apiOutput');
-    const responseStatus = document.getElementById('responseStatus');
-    const responseTimer = document.getElementById('responseTimer');
-    const btnHealth = document.getElementById('btnHealth');
-    const btnStatus = document.getElementById('btnStatus');
-    const btnFiles = document.getElementById('btnFiles');
-    const btnCopy = document.getElementById('btnCopy');
-    const copyText = document.getElementById('copyText');
-    const chips = [btnHealth, btnStatus, btnFiles];
-
-    let lastResult = '';
-
-    async function callEndpoint(url, activeBtn) {
-        chips.forEach(c => c && c.classList.remove('active'));
-        if (activeBtn) activeBtn.classList.add('active');
-
-        if (apiOutput) apiOutput.innerHTML = '<code>Consultando ' + url + '...</code>';
-        if (responseStatus) {
-            responseStatus.textContent = 'Enviando...';
-            responseStatus.style.color = 'var(--text-subtle)';
-        }
-
-        const start = performance.now();
-        try {
-            const res = await fetch(url);
-            const duration = Math.round(performance.now() - start);
-
-            if (responseTimer) responseTimer.textContent = duration + ' ms';
-            if (pingEl) pingEl.textContent = duration + ' ms';
-
-            if (responseStatus) {
-                responseStatus.textContent = res.status + ' ' + (res.statusText || 'OK');
-                responseStatus.style.color = res.ok ? 'var(--primary)' : 'var(--accent-amber)';
-            }
-
-            const contentType = res.headers.get('content-type') || '';
-            let text = '';
-            if (contentType.includes('application/json')) {
-                const json = await res.json();
-                text = JSON.stringify(json, null, 2);
-            } else {
-                text = await res.text();
-            }
-
-            lastResult = text;
-            if (apiOutput) {
-                apiOutput.innerHTML = '<code>' + escapeHtml(text) + '</code>';
-            }
-        } catch (err) {
-            const duration = Math.round(performance.now() - start);
-            if (responseTimer) responseTimer.textContent = duration + ' ms';
-            if (responseStatus) {
-                responseStatus.textContent = 'ERRO';
-                responseStatus.style.color = '#ef4444';
-            }
-            lastResult = err.message;
-            if (apiOutput) {
-                apiOutput.innerHTML = '<code>Falha na requisição: ' + escapeHtml(err.message) + '\n\nCertifique-se de que o servidor AndServer está em execução.</code>';
-            }
-        }
-    }
-
-    if (btnHealth) btnHealth.addEventListener('click', () => callEndpoint('/health', btnHealth));
-    if (btnStatus) btnStatus.addEventListener('click', () => callEndpoint('/api/status', btnStatus));
-    if (btnFiles) btnFiles.addEventListener('click', () => callEndpoint('/api/files', btnFiles));
-
-    if (btnCopy) {
-        btnCopy.addEventListener('click', () => {
-            if (!lastResult) return;
-            navigator.clipboard.writeText(lastResult).then(() => {
-                if (copyText) copyText.textContent = 'Copiado!';
-                setTimeout(() => {
-                    if (copyText) copyText.textContent = 'Copiar';
-                }, 2000);
-            }).catch(() => {
-                if (copyText) copyText.textContent = 'Falha ao copiar';
-            });
-        });
-    }
-
-    function escapeHtml(str) {
-        return str
-            .replace(/&/g, '&amp;')
-            .replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;')
-            .replace(/"/g, '&quot;')
-            .replace(/'/g, '&#039;');
-    }
-
-    setTimeout(() => {
-        callEndpoint('/health', btnHealth);
-    }, 400);
-});
-""".trimIndent()
-            )
-        }
-    }
-
-    private fun buildStorageCard(): View = card().apply {
-        addView(label("ARMAZENAMENTO DE ARQUIVOS", 13, textPrimary, bold = true))
-        addView(label("Os arquivos enviados pela interface web ficam guardados no espaço privado seguro do aplicativo.", 12, textMuted).apply {
-            setPadding(0, dp(4), 0, dp(12))
-        })
-        val clearBtn = Button(this@MainActivity).apply {
-            text = "LIMPAR ARQUIVOS HOSPEDADOS"
-            textSize = 12f
-            typeface = Typeface.create("sans-serif-medium", Typeface.BOLD)
-            setTextColor(Color.WHITE)
-            background = roundedDrawable(Color.rgb(127, 29, 29), 0, 0, dp(8).toFloat())
-            setOnClickListener {
-                val dir = java.io.File(filesDir, "hosted")
-                val count = dir.listFiles()?.count { it.walkTopDown().count { child -> child.isFile } > 0 && it.deleteRecursively() } ?: 0
-                Toast.makeText(this@MainActivity, "$count item(ns) removido(s)", Toast.LENGTH_SHORT).show()
-                renderScreen()
-            }
-        }
-        addView(clearBtn)
-    }
-
-    private fun startServer(showDashboard: Boolean = true) {
-        val port = prefs.getInt("port", ServerService.DEFAULT_TLS_PORT)
-        val intent = Intent(this, ServerService::class.java).setAction(ServerService.ACTION_START)
-            .putExtra(ServerService.EXTRA_PORT, port)
-            .putExtra(ServerService.EXTRA_TYPE, prefs.getString("type", "web"))
-            .putExtra(ServerService.EXTRA_NETWORK_SCOPE, prefs.getString("network_scope", "local"))
-            .putStringArrayListExtra(ServerService.EXTRA_FILTERS, ArrayList(prefs.getStringSet("filters", setOf("all")) ?: setOf("all")))
-            .putExtra(ServerService.EXTRA_WORKERS, prefs.getInt("workers", 8))
-            .putExtra(ServerService.EXTRA_PASSWORD, prefs.getString("password", ""))
-
-        try {
-            if (Build.VERSION.SDK_INT >= 26) startForegroundService(intent) else startService(intent)
-            if (showDashboard) {
-                screen = 0
-                renderScreen()
-            }
-        } catch (e: Exception) {
-            Toast.makeText(this, "Não foi possível iniciar: ${e.localizedMessage}", Toast.LENGTH_LONG).show()
-        }
-    }
-
-    private fun stopServer() {
-        startService(Intent(this, ServerService::class.java).setAction(ServerService.ACTION_STOP))
-        renderScreen()
-    }
-
-    private fun onFilterChanged(id: String, checked: Boolean) {
-        if (id == "all" && checked) {
-            filters.clear()
-            filters.add("all")
-        } else if (id == "all") {
-            filters.remove("all")
-        } else {
-            if (checked) {
-                filters.remove("all")
-                filters.add(id)
-            } else {
-                filters.remove(id)
-            }
-        }
-        fileChecks.forEach { (key, box) ->
-            box.setOnCheckedChangeListener(null)
-            box.isChecked = key in filters
-            box.setOnCheckedChangeListener { _, value -> onFilterChanged(key, value) }
-        }
-    }
-
-    private fun applyKeepScreenOn() {
-        if (prefs.getBoolean("keep_screen", false)) {
-            window.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-        } else {
-            window.clearFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-        }
-    }
-
-    private fun lanAddress(): String {
-        try {
-            val addresses = NetworkInterface.getNetworkInterfaces().toList()
-                .flatMap { it.inetAddresses.toList() }
-                .filter { !it.isLoopbackAddress && it is java.net.Inet4Address }
-            return (addresses.firstOrNull { it.hostAddress?.startsWith("192.168.") == true }
-                ?: addresses.firstOrNull { it.hostAddress?.startsWith("10.") == true }
-                ?: addresses.firstOrNull())?.hostAddress ?: "IP indisponível"
-        } catch (_: Exception) {
-            return "IP indisponível"
-        }
-    }
-
-    private fun duration(ms: Long): String {
-        val seconds = (ms / 1000).coerceAtLeast(0)
-        return "%02d:%02d:%02d".format(seconds / 3600, (seconds / 60) % 60, seconds % 60)
-    }
-
-    private fun formatBytes(bytes: Long): String = when {
-        bytes >= 1024L * 1024 * 1024 -> "%.1f GB".format(bytes / (1024.0 * 1024 * 1024))
-        bytes >= 1024L * 1024 -> "%.1f MB".format(bytes / (1024.0 * 1024))
-        bytes >= 1024 -> "%.1f KB".format(bytes / 1024.0)
-        else -> "$bytes B"
-    }
-
-    private fun serverTypeName(type: String) = when (type) {
-        "site" -> "Site Web Hospedado (www)"
-        "files" -> "Servidor de arquivos"
-        "api" -> "Servidor de API"
-        else -> "Central Web & Arquivos"
-    }
-
-    private fun metric(caption: String, value: String) = LinearLayout(this).apply {
-        orientation = LinearLayout.VERTICAL
-        background = roundedDrawable(panelAlt, panelBorder, dp(1), dp(10).toFloat())
-        val padH = if (isTablet) dp(14) else dp(10)
-        val padV = if (isTablet) dp(12) else dp(10)
-        setPadding(padH, padV, padH, padV)
-
-        addView(label(caption, 10, textSubtle, bold = true))
-        val valueView = label(value, if (isTablet) 20 else 18, textPrimary, bold = true).apply {
-            setPadding(0, dp(4), 0, 0)
-        }
-        metricViews[caption] = valueView
-        addView(valueView)
-    }
-
-    private fun card() = LinearLayout(this).apply {
-        orientation = LinearLayout.VERTICAL
-        val padH = if (isTablet) dp(22) else dp(16)
-        val padV = if (isTablet) dp(20) else dp(16)
-        setPadding(padH, padV, padH, padV)
-        background = roundedDrawable(panel, panelBorder, dp(1), dp(16).toFloat())
-    }
-
-    private fun roundedDrawable(bgColor: Int, strokeColor: Int = 0, strokeWidth: Int = 0, radius: Float = dp(14).toFloat()): GradientDrawable {
-        return GradientDrawable().apply {
-            shape = GradientDrawable.RECTANGLE
-            setColor(bgColor)
-            cornerRadius = radius
-            if (strokeWidth > 0 && strokeColor != 0) {
-                setStroke(strokeWidth, strokeColor)
-            }
-        }
-    }
-
-    private fun label(text: String, size: Int, color: Int, bold: Boolean = false) = TextView(this).apply {
-        this.text = text
-        textSize = size.toFloat()
-        setTextColor(color)
-        if (bold) setTypeface(Typeface.create("sans-serif-medium", Typeface.BOLD), Typeface.BOLD)
-    }
-
-    private fun marginTop(v: Int) = LinearLayout.LayoutParams(-1, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
-        topMargin = dp(v)
-    }
-
-    private fun dp(v: Int) = (v * resources.displayMetrics.density).toInt()
 }
